@@ -373,11 +373,9 @@ class DepressionPredictionApp:
                 # 线性模型使用LinearExplainer
                 explainer = shap.LinearExplainer(model, self.background_data.sample(50))
                 shap_values = explainer.shap_values(input_data)
-            elif model_name in ['KNN', 'SVM', 'ANN']:
-                # 非线性模型使用KernelExplainer (采样版本，速度更快)
-                background_sample = self.background_data.sample(30, random_state=42)  # 减少样本数提高速度
-                explainer = shap.KernelExplainer(model.predict, background_sample)
-                shap_values = explainer.shap_values(input_data, nsamples=50)  # 减少采样次数
+            elif model_name in ['KNN']:
+                # KNN模型先暂时跳过SHAP分析，因为KernelExplainer太慢
+                return None
             else:
                 # 其他模型暂时跳过SHAP分析
                 return None
@@ -393,11 +391,9 @@ class DepressionPredictionApp:
         # 页面标题
         st.markdown('<div class="main-title">抑郁量表得分预测</div>', unsafe_allow_html=True)
         
-        # 显示SHAP状态提示
+        # 只在SHAP不可用时显示提示
         if not SHAP_AVAILABLE:
             st.info("📊 预测功能正常运行，SHAP分析功能暂时不可用")
-        else:
-            st.success("🎯 SHAP分析已启用 - 所有5个模型均支持特征解释")
         
         # 模型选择 - 去掉多余空白
         col1, col2 = st.columns([1, 2])
@@ -504,19 +500,24 @@ class DepressionPredictionApp:
                     ), unsafe_allow_html=True)
                     
                     # SHAP分析
-                    try:
-                        with st.spinner("生成SHAP分析图..."):
-                            shap_result = self.run_shap_analysis(self.models[selected_model], selected_model, input_data)
-                            
-                            if shap_result:
-                                shap_values, explainer = shap_result
+                    if SHAP_AVAILABLE:
+                        try:
+                            with st.spinner("正在生成特征重要性分析图..."):
+                                shap_result = self.run_shap_analysis(self.models[selected_model], selected_model, input_data)
                                 
-                                # 创建SHAP force plot
-                                fig = self.create_shap_force_plot(explainer, shap_values, input_data)
-                                if fig:
-                                    st.pyplot(fig)
-                    except Exception as shap_error:
-                        st.warning(f"SHAP分析暂时不可用: {shap_error}")
+                                if shap_result:
+                                    shap_values, explainer = shap_result
+                                    
+                                    # 创建SHAP force plot
+                                    fig = self.create_shap_force_plot(explainer, shap_values, input_data)
+                                    if fig:
+                                        st.subheader("📊 特征贡献度分析")
+                                        st.pyplot(fig)
+                                        plt.close(fig)  # 释放内存
+                                elif selected_model == 'KNN':
+                                    st.info("💡 KNN模型的特征分析需要较长时间，已跳过")
+                        except Exception as shap_error:
+                            st.warning(f"特征分析暂时不可用: {str(shap_error)}")
                 
                 except Exception as e:
                     st.error(f"预测失败: {e}")
