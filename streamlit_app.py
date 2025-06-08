@@ -540,19 +540,50 @@ class DepressionPredictionApp:
         # 预测按钮
         if st.button("Predict", key="predict_btn"):
             if selected_model in self.models:
-                # 准备输入数据
-                input_data = pd.DataFrame({
-                    '亲子量表总得分': [parent_child],
-                    '韧性量表总得分': [resilience],
-                    '焦虑量表总得分': [anxiety],
-                    '手机使用时间总得分': [phone_usage]
-                })
+                # 准备输入数据 - 根据模型类型使用不同的特征名称
+                if selected_model in ['XGBoost', 'LightGBM']:
+                    # 树模型使用英文特征名称
+                    input_data = pd.DataFrame({
+                        'parent_child_score': [parent_child],
+                        'resilience_score': [resilience],
+                        'anxiety_score': [anxiety],
+                        'phone_usage_score': [phone_usage]
+                    })
+                else:
+                    # 其他模型使用中文特征名称
+                    input_data = pd.DataFrame({
+                        '亲子量表总得分': [parent_child],
+                        '韧性量表总得分': [resilience],
+                        '焦虑量表总得分': [anxiety],
+                        '手机使用时间总得分': [phone_usage]
+                    })
                 
                 # 进行预测
                 try:
+                    print(f"🔄 开始使用 {selected_model} 模型进行预测...")
+                    print(f"📊 输入数据: {input_data}")
+                    
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
+                        
+                        # 特殊处理XGBoost的GPU兼容性问题
+                        if selected_model in ['XGBoost', 'LightGBM']:
+                            model = self.models[selected_model]
+                            # 如果是XGBoost模型，确保使用CPU预测
+                            if hasattr(model, 'set_param'):
+                                try:
+                                    model.set_param({'device': 'cpu'})
+                                except:
+                                    pass
+                            elif hasattr(model, 'gpu_id'):
+                                try:
+                                    delattr(model, 'gpu_id')
+                                except:
+                                    pass
+                        
                         prediction = self.models[selected_model].predict(input_data)[0]
+                    
+                    print(f"✅ {selected_model} 预测成功，结果: {prediction}")
                     
                     # 计算置信区间
                     mean_pred, lower_ci, upper_ci = self.calculate_prediction_confidence(
