@@ -364,14 +364,20 @@ class DepressionPredictionApp:
             return None
         
         try:
-            # 只对部分模型使用SHAP分析
+            # 针对不同模型类型使用不同的SHAP解释器
             if model_name in ['XGBoost', 'LightGBM', 'RandomForest', 'DecisionTree', 'GradientBoosting', 'ExtraTrees']:
+                # 树模型使用TreeExplainer
                 explainer = shap.TreeExplainer(model)
                 shap_values = explainer.shap_values(input_data)
             elif model_name in ['LinearRegression', 'Ridge']:
-                # 对于线性模型使用简化的解释器
+                # 线性模型使用LinearExplainer
                 explainer = shap.LinearExplainer(model, self.background_data.sample(50))
                 shap_values = explainer.shap_values(input_data)
+            elif model_name in ['KNN', 'SVM', 'ANN']:
+                # 非线性模型使用KernelExplainer (采样版本，速度更快)
+                background_sample = self.background_data.sample(30, random_state=42)  # 减少样本数提高速度
+                explainer = shap.KernelExplainer(model.predict, background_sample)
+                shap_values = explainer.shap_values(input_data, nsamples=50)  # 减少采样次数
             else:
                 # 其他模型暂时跳过SHAP分析
                 return None
@@ -390,6 +396,8 @@ class DepressionPredictionApp:
         # 显示SHAP状态提示
         if not SHAP_AVAILABLE:
             st.info("📊 预测功能正常运行，SHAP分析功能暂时不可用")
+        else:
+            st.success("🎯 SHAP分析已启用 - 所有5个模型均支持特征解释")
         
         # 模型选择 - 去掉多余空白
         col1, col2 = st.columns([1, 2])
