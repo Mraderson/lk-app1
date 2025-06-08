@@ -1,0 +1,5 @@
+build-essential
+gcc
+g++
+cmake
+libgomp1 
