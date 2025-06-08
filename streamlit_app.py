@@ -280,7 +280,32 @@ class DepressionPredictionApp:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         with open(model_path, 'rb') as f:
-                            self.models[model_name] = pickle.load(f)
+                            model = pickle.load(f)
+                            
+                            # 立即修复XGBoost/LightGBM的GPU兼容性问题
+                            if model_name in ['XGBoost', 'LightGBM']:
+                                try:
+                                    # 强制移除GPU相关属性
+                                    gpu_attrs = ['gpu_id', 'device', 'tree_method']
+                                    for attr in gpu_attrs:
+                                        if hasattr(model, attr):
+                                            delattr(model, attr)
+                                    
+                                    # 设置为CPU模式
+                                    if hasattr(model, 'set_param'):
+                                        model.set_param({'device': 'cpu'})
+                                    
+                                    # 处理booster
+                                    if hasattr(model, 'get_booster'):
+                                        booster = model.get_booster()
+                                        if hasattr(booster, 'set_param'):
+                                            booster.set_param({'device': 'cpu'})
+                                    
+                                    print(f"✅ {model_name} GPU兼容性已修复")
+                                except Exception as fix_error:
+                                    print(f"⚠️ {model_name} GPU修复警告: {fix_error}")
+                            
+                            self.models[model_name] = model
                             loaded_models.append(model_name)
                             print(f"✅ 成功加载模型: {model_name}")
                 except Exception as e:
@@ -566,22 +591,72 @@ class DepressionPredictionApp:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         
-                        # 特殊处理XGBoost的GPU兼容性问题
-                        if selected_model in ['XGBoost', 'LightGBM']:
-                            model = self.models[selected_model]
-                            # 如果是XGBoost模型，确保使用CPU预测
-                            if hasattr(model, 'set_param'):
-                                try:
-                                    model.set_param({'device': 'cpu'})
-                                except:
-                                    pass
-                            elif hasattr(model, 'gpu_id'):
-                                try:
-                                    delattr(model, 'gpu_id')
-                                except:
-                                    pass
+                        # 超强力修复XGBoost的GPU兼容性问题 - 运行时修复
+                        model = self.models[selected_model]
                         
-                        prediction = self.models[selected_model].predict(input_data)[0]
+                        if selected_model in ['XGBoost', 'LightGBM']:
+                            print(f"  🔧 正在修复{selected_model}的GPU兼容性...")
+                            
+                            # 策略1: 创建模型副本并清理GPU属性
+                            try:
+                                import copy
+                                model = copy.deepcopy(model)
+                                
+                                # 移除所有可能的GPU相关属性
+                                gpu_attrs = ['gpu_id', 'device', 'tree_method', 'predictor', 'gpu_hist']
+                                for attr in gpu_attrs:
+                                    if hasattr(model, attr):
+                                        try:
+                                            delattr(model, attr)
+                                            print(f"    ✅ 移除属性: {attr}")
+                                        except:
+                                            pass
+                                
+                                # 强制设置CPU参数
+                                cpu_params = {
+                                    'device': 'cpu',
+                                    'tree_method': 'hist',
+                                    'predictor': 'cpu_predictor'
+                                }
+                                
+                                if hasattr(model, 'set_param'):
+                                    for key, value in cpu_params.items():
+                                        try:
+                                            model.set_param({key: value})
+                                            print(f"    ✅ 设置参数: {key}={value}")
+                                        except:
+                                            pass
+                                
+                                # 处理booster
+                                if hasattr(model, 'get_booster'):
+                                    try:
+                                        booster = model.get_booster()
+                                        for key, value in cpu_params.items():
+                                            try:
+                                                booster.set_param({key: value})
+                                                print(f"    ✅ Booster设置: {key}={value}")
+                                            except:
+                                                pass
+                                    except:
+                                        pass
+                                
+                                print(f"  ✅ {selected_model} GPU兼容性修复完成")
+                                
+                            except Exception as fix_error:
+                                print(f"  ⚠️ 深度修复失败: {fix_error}")
+                                # 如果深度修复失败，使用原模型
+                                model = self.models[selected_model]
+                        
+                        # 进行预测，如果还是失败就跳过这个模型
+                        try:
+                            prediction = model.predict(input_data)[0]
+                        except Exception as pred_error:
+                            if 'gpu_id' in str(pred_error):
+                                st.error(f"⚠️ {selected_model} 模型存在GPU兼容性问题，建议使用其他模型")
+                                st.info("💡 推荐使用 LinearRegression 或 Ridge 模型，它们更稳定")
+                                return
+                            else:
+                                raise pred_error
                     
                     print(f"✅ {selected_model} 预测成功，结果: {prediction}")
                     
@@ -655,8 +730,89 @@ class DepressionPredictionApp:
                             st.warning(f"特征分析暂时不可用: {str(shap_error)}")
                 
                 except Exception as e:
-                    st.error(f"预测失败: {e}")
-                    st.info("请尝试选择其他模型或检查输入数据")
+                    error_msg = str(e)
+                    if 'gpu_id' in error_msg and selected_model in ['XGBoost', 'LightGBM']:
+                        # 特殊处理XGBoost/LightGBM的GPU错误
+                        st.error(f"⚠️ {selected_model}模型遇到GPU兼容性问题")
+                        st.info("💡 建议使用LinearRegression或Ridge模型，它们在云端环境中更稳定")
+                        
+                        # 尝试emergency修复并重试一次
+                        try:
+                            st.info("🔧 正在尝试紧急修复...")
+                            model = self.models[selected_model]
+                            
+                            # 强制重置模型状态
+                            import copy
+                            model_copy = copy.deepcopy(model)
+                            
+                            # 移除所有可能的GPU属性
+                            for attr in ['gpu_id', 'device', 'tree_method', '_Booster']:
+                                if hasattr(model_copy, attr):
+                                    try:
+                                        delattr(model_copy, attr)
+                                    except:
+                                        pass
+                            
+                            # 使用修复后的模型重试预测
+                            prediction = model_copy.predict(input_data)[0]
+                            
+                            # 如果成功，替换原模型
+                            self.models[selected_model] = model_copy
+                            st.success(f"🎉 {selected_model}模型修复成功！")
+                            
+                            # 继续显示结果的逻辑...
+                            mean_pred, lower_ci, upper_ci = self.calculate_prediction_confidence(
+                                self.models[selected_model], selected_model, input_data
+                            )
+                            
+                            final_prediction = mean_pred if mean_pred is not None else prediction
+                            
+                            # 显示预测结果
+                            st.markdown(f"""
+                            <div style="background-color: #ffffff; border: 2px solid #dee2e6; border-radius: 8px; padding: 20px; margin: 10px 0; text-align: center;">
+                                <div style="font-size: 18px; color: #000000; font-style: italic; margin-bottom: 10px;">
+                                    Based on feature values, predicted possibility of Depression is
+                                </div>
+                                <div style="font-size: 24px; font-weight: bold; color: #000000; margin-bottom: 5px;">
+                                    {final_prediction*100/27:.2f}%
+                                </div>
+                                {f'<div style="font-size: 16px; color: #666666; margin-top: 10px;">95% 置信区间: {lower_ci*100/27:.1f}% - {upper_ci*100/27:.1f}%</div>' if lower_ci is not None and upper_ci is not None else ''}
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # 显示详细信息
+                            st.markdown("""
+                            <div style="display: flex; justify-content: space-around; margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
+                                <div style="text-align: center; flex: 1;">
+                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">预测得分</div>
+                                    <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">{:.2f}</div>
+                                </div>
+                                <div style="text-align: center; flex: 1;">
+                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">得分范围</div>
+                                    <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">0-27</div>
+                                </div>
+                                <div style="text-align: center; flex: 1;">
+                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">风险等级</div>
+                                    <div style="font-size: 24px; font-weight: bold; color: {};">{}</div>
+                                </div>
+                                <div style="text-align: center; flex: 1;">
+                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">使用模型</div>
+                                    <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">{}</div>
+                                </div>
+                            </div>
+                            """.format(
+                                final_prediction,
+                                "#e74c3c" if final_prediction > 14 else "#f39c12" if final_prediction > 7 else "#27ae60",
+                                "高风险" if final_prediction > 14 else "中风险" if final_prediction > 7 else "低风险",
+                                selected_model
+                            ), unsafe_allow_html=True)
+                            
+                        except Exception as retry_error:
+                            st.error(f"紧急修复失败: {retry_error}")
+                            st.info("💡 建议使用LinearRegression或Ridge模型")
+                    else:
+                        st.error(f"预测失败: {e}")
+                        st.info("请尝试选择其他模型或检查输入数据")
             else:
                 st.error(f"模型 {selected_model} 不可用，请选择其他模型")
 
