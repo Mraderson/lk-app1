@@ -9,13 +9,71 @@ import sys
 from pathlib import Path
 from scipy import stats
 
+# 导入并应用云端兼容性修复
+try:
+    from cloud_compatibility_fix import apply_numpy_compatibility_patch
+    apply_numpy_compatibility_patch()
+except ImportError:
+    # 如果修复脚本不存在，使用内置补丁
+    try:
+        if not hasattr(np, 'int'):
+            np.int = int
+        if not hasattr(np, 'float'):
+            np.float = float
+        if not hasattr(np, 'bool'):
+            np.bool = bool
+        if not hasattr(np, 'complex'):
+            np.complex = complex
+        print("✅ 内置NumPy兼容性补丁已应用")
+    except Exception as e:
+        print(f"⚠️ NumPy兼容性补丁失败: {e}")
+except Exception as e:
+    print(f"⚠️ 云端兼容性修复失败: {e}")
+
+# 修复numpy兼容性问题 - 云端环境
+try:
+    # 添加兼容性补丁，适配新版numpy
+    if not hasattr(np, 'int'):
+        np.int = int
+    if not hasattr(np, 'float'):
+        np.float = float
+    if not hasattr(np, 'bool'):
+        np.bool = bool
+    if not hasattr(np, 'complex'):
+        np.complex = complex
+    print("✅ NumPy兼容性补丁已应用")
+except Exception as e:
+    print(f"⚠️ NumPy兼容性补丁失败: {e}")
+
+# 修复numpy兼容性问题 - 云端环境
+try:
+    # 添加兼容性补丁，适配新版numpy
+    if not hasattr(np, 'int'):
+        np.int = int
+    if not hasattr(np, 'float'):
+        np.float = float
+    if not hasattr(np, 'bool'):
+        np.bool = bool
+    if not hasattr(np, 'complex'):
+        np.complex = complex
+    print("✅ NumPy兼容性补丁已应用")
+except Exception as e:
+    print(f"⚠️ NumPy兼容性补丁失败: {e}")
+
 # 安全导入SHAP - 如果失败也不影响主要功能
 SHAP_AVAILABLE = True
 try:
     import shap
+    print("✅ SHAP库导入成功")
 except ImportError as e:
     SHAP_AVAILABLE = False
     print(f"⚠️ SHAP未安装: {e}")
+except Exception as e:
+    SHAP_AVAILABLE = False
+    print(f"⚠️ SHAP导入错误: {e}")
+except Exception as e:
+    SHAP_AVAILABLE = False
+    print(f"⚠️ SHAP导入错误: {e}")
 
 # 获取当前目录路径
 current_dir = Path(__file__).parent
@@ -394,31 +452,18 @@ class DepressionPredictionApp:
             return None
     
     def run_shap_analysis(self, model, model_name, input_data):
-        """运行SHAP分析 - 简化版本"""
+        """运行SHAP分析 - 简化版本，专门处理云端兼容性问题"""
         if not hasattr(self, 'background_data_en') or self.background_data_en is None or not SHAP_AVAILABLE:
             return None
         
         try:
             print(f"正在分析模型: {model_name}")  # 调试信息
             
-            # 根据模型类型选择合适的背景数据和输入数据格式
-            if model_name in ['XGBoost', 'LightGBM', 'RandomForest', 'DecisionTree', 'GradientBoosting', 'ExtraTrees']:
-                # 树模型使用TreeExplainer和英文特征名称
-                print(f"使用TreeExplainer分析 {model_name}")
-                
-                # 转换输入数据为英文特征名称
-                input_data_en = input_data.rename(columns={
-                    '亲子量表总得分': 'parent_child_score',
-                    '韧性量表总得分': 'resilience_score', 
-                    '焦虑量表总得分': 'anxiety_score',
-                    '手机使用时间总得分': 'phone_usage_score'
-                })
-                
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")  # 忽略XGBoost版本警告
-                    explainer = shap.TreeExplainer(model)
-                    shap_values = explainer.shap_values(input_data_en)
-                print(f"{model_name} TreeExplainer分析完成")
+            # 针对XGBoost和LightGBM的兼容性问题，暂时只支持线性模型的SHAP分析
+            if model_name in ['XGBoost', 'LightGBM']:
+                # 由于numpy兼容性问题，暂时跳过树模型的SHAP分析
+                print(f"⚠️ {model_name} 在云端环境中暂时跳过SHAP分析（兼容性问题）")
+                return None
                 
             elif model_name in ['LinearRegression', 'Ridge']:
                 # 线性模型使用LinearExplainer和中文特征名称
@@ -429,7 +474,7 @@ class DepressionPredictionApp:
                 
             elif model_name in ['KNN']:
                 # KNN模型先暂时跳过SHAP分析，因为KernelExplainer太慢
-                print(f"{model_name} 跳过SHAP分析")
+                print(f"{model_name} 跳过SHAP分析（性能原因）")
                 return None
             else:
                 # 其他模型暂时跳过SHAP分析
@@ -441,8 +486,7 @@ class DepressionPredictionApp:
             
         except Exception as e:
             print(f"SHAP分析错误 ({model_name}): {e}")
-            import traceback
-            traceback.print_exc()
+            # 不打印完整的traceback，避免干扰用户
             return None
     
     def run(self):
@@ -572,8 +616,10 @@ class DepressionPredictionApp:
                                     if fig:
                                         st.pyplot(fig)
                                         plt.close(fig)  # 释放内存
-                                elif selected_model == 'KNN':
+                                elif selected_model in ['KNN']:
                                     st.info("💡 KNN模型的特征分析需要较长时间，已跳过")
+                                elif selected_model in ['XGBoost', 'LightGBM']:
+                                    st.info("💡 树模型在云端环境中的特征分析暂时不可用，可试试线性模型")
                         except Exception as shap_error:
                             st.warning(f"特征分析暂时不可用: {str(shap_error)}")
                 
