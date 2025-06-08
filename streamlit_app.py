@@ -236,20 +236,50 @@ class DepressionPredictionApp:
     def load_background_data(self):
         """加载背景数据用于SHAP分析和置信区间计算"""
         try:
-            data_path = current_dir / 'data' / '量表总分完整数据.csv'
-            if data_path.exists():
-                df = pd.read_csv(data_path)
-                # 随机采样500个样本作为背景数据
-                self.background_data = df[self.feature_names].sample(n=min(500, len(df)), random_state=42)
-                # 加载完整数据用于置信区间估算
-                self.full_data = df
+            # 尝试加载预生成的背景数据
+            background_data_path = current_dir / 'models' / 'background_data.pkl'
+            background_data_cn_path = current_dir / 'models' / 'background_data_cn.pkl'
+            
+            if background_data_path.exists() and background_data_cn_path.exists():
+                # 加载英文和中文特征名称的背景数据
+                with open(background_data_path, 'rb') as f:
+                    self.background_data_en = pickle.load(f)
+                with open(background_data_cn_path, 'rb') as f:
+                    self.background_data_cn = pickle.load(f)
+                print(f"✅ 已加载预生成的背景数据")
             else:
-                st.error("找不到数据文件")
-                self.background_data = None
-                self.full_data = None
+                # 回退到从CSV加载数据
+                data_path = current_dir / 'data' / '量表总分完整数据.csv'
+                if data_path.exists():
+                    df = pd.read_csv(data_path)
+                    # 随机采样500个样本作为背景数据
+                    sample_data = df[self.feature_names].sample(n=min(500, len(df)), random_state=42)
+                    
+                    # 创建英文特征名称的背景数据
+                    self.background_data_en = sample_data.rename(columns={
+                        '亲子量表总得分': 'parent_child_score',
+                        '韧性量表总得分': 'resilience_score', 
+                        '焦虑量表总得分': 'anxiety_score',
+                        '手机使用时间总得分': 'phone_usage_score'
+                    })
+                    
+                    # 中文特征名称的背景数据保持原样
+                    self.background_data_cn = sample_data
+                    
+                    print(f"✅ 从CSV文件加载背景数据")
+                    
+                    # 加载完整数据用于置信区间估算
+                    self.full_data = df
+                else:
+                    st.error("找不到数据文件和预生成的背景数据")
+                    self.background_data_en = None
+                    self.background_data_cn = None
+                    self.full_data = None
+                    
         except Exception as e:
             st.error(f"加载数据失败: {e}")
-            self.background_data = None
+            self.background_data_en = None
+            self.background_data_cn = None
             self.full_data = None
     
     def calculate_prediction_confidence(self, model, model_name, input_data, n_bootstrap=50):
@@ -282,15 +312,20 @@ class DepressionPredictionApp:
     def create_shap_force_plot(self, explainer, shap_values, input_data):
         """创建SHAP force plot，参考用户提供的图片样式"""
         try:
+            print(f"开始创建SHAP图表...")
+            
             # 获取特征值和英文名称
             feature_values = input_data.iloc[0].values
             english_names = [self.feature_name_mapping[name] for name in self.feature_names]
             
             # 获取基准值和SHAP值
             expected_value = explainer.expected_value
+            print(f"Expected value: {expected_value}, type: {type(expected_value)}")
+            
             if hasattr(expected_value, '__len__') and len(expected_value) > 1:
                 expected_value = expected_value[0]
             
+            print(f"SHAP values shape: {shap_values.shape}")
             if len(shap_values.shape) > 1:
                 shap_vals = shap_values[0]
             else:
@@ -360,30 +395,54 @@ class DepressionPredictionApp:
     
     def run_shap_analysis(self, model, model_name, input_data):
         """运行SHAP分析 - 简化版本"""
-        if self.background_data is None or not SHAP_AVAILABLE:
+        if not hasattr(self, 'background_data_en') or self.background_data_en is None or not SHAP_AVAILABLE:
             return None
         
         try:
-            # 针对不同模型类型使用不同的SHAP解释器
+            print(f"正在分析模型: {model_name}")  # 调试信息
+            
+            # 根据模型类型选择合适的背景数据和输入数据格式
             if model_name in ['XGBoost', 'LightGBM', 'RandomForest', 'DecisionTree', 'GradientBoosting', 'ExtraTrees']:
-                # 树模型使用TreeExplainer
-                explainer = shap.TreeExplainer(model)
-                shap_values = explainer.shap_values(input_data)
+                # 树模型使用TreeExplainer和英文特征名称
+                print(f"使用TreeExplainer分析 {model_name}")
+                
+                # 转换输入数据为英文特征名称
+                input_data_en = input_data.rename(columns={
+                    '亲子量表总得分': 'parent_child_score',
+                    '韧性量表总得分': 'resilience_score', 
+                    '焦虑量表总得分': 'anxiety_score',
+                    '手机使用时间总得分': 'phone_usage_score'
+                })
+                
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")  # 忽略XGBoost版本警告
+                    explainer = shap.TreeExplainer(model)
+                    shap_values = explainer.shap_values(input_data_en)
+                print(f"{model_name} TreeExplainer分析完成")
+                
             elif model_name in ['LinearRegression', 'Ridge']:
-                # 线性模型使用LinearExplainer
-                explainer = shap.LinearExplainer(model, self.background_data.sample(50))
+                # 线性模型使用LinearExplainer和中文特征名称
+                print(f"使用LinearExplainer分析 {model_name}")
+                explainer = shap.LinearExplainer(model, self.background_data_cn.sample(50, random_state=42))
                 shap_values = explainer.shap_values(input_data)
+                print(f"{model_name} LinearExplainer分析完成")
+                
             elif model_name in ['KNN']:
                 # KNN模型先暂时跳过SHAP分析，因为KernelExplainer太慢
+                print(f"{model_name} 跳过SHAP分析")
                 return None
             else:
                 # 其他模型暂时跳过SHAP分析
+                print(f"{model_name} 暂不支持SHAP分析")
                 return None
             
+            print(f"{model_name} SHAP分析成功，返回结果")
             return shap_values, explainer
             
         except Exception as e:
-            print(f"SHAP分析错误: {e}")
+            print(f"SHAP分析错误 ({model_name}): {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def run(self):
@@ -511,7 +570,6 @@ class DepressionPredictionApp:
                                     # 创建SHAP force plot
                                     fig = self.create_shap_force_plot(explainer, shap_values, input_data)
                                     if fig:
-                                        st.subheader("📊 特征贡献度分析")
                                         st.pyplot(fig)
                                         plt.close(fig)  # 释放内存
                                 elif selected_model == 'KNN':
