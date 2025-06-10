@@ -409,12 +409,12 @@ class DepressionPredictionApp:
             except:
                 return None, None, None
     
-    def create_shap_force_plot(self, explainer, shap_values, input_data):
-        """创建SHAP force plot，兼容Streamlit显示"""
+    def create_shap_waterfall_plot(self, explainer, shap_values, input_data):
+        """创建SHAP waterfall plot，更清晰的可解释性可视化"""
         try:
             import matplotlib.pyplot as plt
             import matplotlib.patches as patches
-            print(f"开始创建SHAP force plot...")
+            print(f"开始创建SHAP waterfall plot...")
             
             # 强制清除matplotlib缓存和重新配置
             plt.style.use('default')
@@ -425,9 +425,9 @@ class DepressionPredictionApp:
             # 设置高质量图表参数
             plt.rcParams['figure.facecolor'] = 'white'
             plt.rcParams['axes.facecolor'] = 'white'
-            plt.rcParams['figure.dpi'] = 100
-            plt.rcParams['savefig.dpi'] = 150
-            plt.rcParams['font.size'] = 10
+            plt.rcParams['figure.dpi'] = 150
+            plt.rcParams['savefig.dpi'] = 200
+            plt.rcParams['font.size'] = 12
             
             # 获取基准值和SHAP值
             expected_value = explainer.expected_value
@@ -439,152 +439,89 @@ class DepressionPredictionApp:
             else:
                 shap_vals = shap_values
             
-            # 首先尝试原生SHAP图表
+            # 使用原生SHAP waterfall plot
             try:
                 import shap
-                # 尝试使用SHAP的force plot
-                print("尝试使用原生SHAP force plot...")
-                
-                # 创建图形 - 更大尺寸
-                fig, ax = plt.subplots(figsize=(20, 8))
-                fig.patch.set_facecolor('white')
-                
-                # 设置高DPI和字体
-                plt.rcParams['figure.dpi'] = 150
-                plt.rcParams['savefig.dpi'] = 200
-                
-                # 使用shap的内部函数来绘制force plot
-                try:
-                    # 新版本SHAP - 直接跳过，因为有字体问题
-                    raise Exception("跳过原生SHAP，使用自定义实现避免字体问题")
-                except:
-                    try:
-                        # 旧版本SHAP - 也跳过
-                        raise Exception("跳过原生SHAP，使用自定义实现避免字体问题")
-                    except:
-                        # SHAP原生方法失败，使用自定义实现
-                        print("使用自定义force plot避免字体问题...")
-                        plt.close(fig)
-                        raise Exception("原生SHAP不可用")
-                        
-            except Exception as shap_error:
-                print(f"原生SHAP失败: {shap_error}")
-                
-                # 使用自定义的force plot实现
-                print("使用自定义force plot实现...")
-                
-                # 获取特征信息 - 使用英文标签避免乱码
-                feature_values = input_data.iloc[0].values
-                # 映射到英文标签
-                feature_name_mapping = {
-                    '亲子量表总得分': 'Parent-Child Scale',
-                    '韧性量表总得分': 'Resilience Scale', 
-                    '焦虑量表总得分': 'Anxiety Scale',
-                    '手机使用时间总得分': 'Phone Usage Scale'
-                }
-                feature_names = [feature_name_mapping.get(name, name) for name in input_data.columns.tolist()]
+                print("使用原生SHAP waterfall plot...")
                 
                 # 创建更大的图形
-                fig, ax = plt.subplots(figsize=(20, 8))
+                fig = plt.figure(figsize=(16, 10))
                 fig.patch.set_facecolor('white')
                 
-                # 设置更高的DPI和字体大小
-                plt.rcParams['figure.dpi'] = 150
-                plt.rcParams['savefig.dpi'] = 200
-                plt.rcParams['font.size'] = 14
-                plt.rcParams['axes.labelsize'] = 16
-                plt.rcParams['axes.titlesize'] = 18
-                
-                # 计算累积效应
-                base_value = expected_value
-                cumulative_values = [base_value]
-                current = base_value
-                
-                for shap_val in shap_vals:
-                    current += shap_val
-                    cumulative_values.append(current)
-                
-                # 绘制基线
-                ax.axhline(y=0, color='black', linestyle='-', alpha=0.3, linewidth=1)
-                
-                # 绘制force plot的箭头和条形 - 增大尺寸
-                y_pos = 0
-                bar_height = 1.0  # 增大条形高度
-                
-                # 颜色设置
-                positive_color = '#ff6b6b'  # 红色 - 增加风险
-                negative_color = '#4ecdc4'  # 蓝绿色 - 降低风险
-                
-                # 绘制每个特征的贡献
-                for i, (name, value, shap_val) in enumerate(zip(feature_names, feature_values, shap_vals)):
-                    start_x = cumulative_values[i]
-                    end_x = cumulative_values[i + 1]
-                    
-                    # 确定颜色
-                    color = positive_color if shap_val > 0 else negative_color
-                    
-                    # 绘制水平条形 - 更厚的边框
-                    if shap_val > 0:
-                        rect = patches.Rectangle((start_x, y_pos - bar_height/2), 
-                                               abs(shap_val), bar_height,
-                                               facecolor=color, alpha=0.8, 
-                                               edgecolor='white', linewidth=2)
-                    else:
-                        rect = patches.Rectangle((end_x, y_pos - bar_height/2), 
-                                               abs(shap_val), bar_height,
-                                               facecolor=color, alpha=0.8, 
-                                               edgecolor='white', linewidth=2)
-                    ax.add_patch(rect)
-                    
-                    # 添加特征标签 - 更大字体
-                    mid_x = (start_x + end_x) / 2
-                    ax.text(mid_x, y_pos + bar_height/2 + 0.25, 
-                           f'{shap_val:+.2f}', ha='center', va='bottom', 
-                           fontsize=14, fontweight='bold', color=color)
-                    
-                    ax.text(mid_x, y_pos - bar_height/2 - 0.25, 
-                           f'{name}\n{value:.1f}', ha='center', va='top', 
-                           fontsize=12, rotation=0, fontweight='bold')
-                
-                # 标记基准值和预测值 - 更大字体和更粗线条
-                ax.axvline(x=base_value, color='gray', linestyle='--', alpha=0.8, linewidth=3)
-                ax.text(base_value, y_pos + 1.2, f'Base Value\n{base_value:.2f}', 
-                       ha='center', va='bottom', fontsize=14, fontweight='bold', 
-                       bbox=dict(boxstyle='round,pad=0.3', facecolor='lightgray', alpha=0.7))
-                
-                final_pred = cumulative_values[-1]
-                ax.axvline(x=final_pred, color='black', linestyle='-', linewidth=4)
-                ax.text(final_pred, y_pos + 1.2, f'Final Prediction\n{final_pred:.2f}', 
-                       ha='center', va='bottom', fontsize=14, fontweight='bold',
-                       bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7))
-                
-                # 设置图表样式 - 更大的范围
-                all_values = cumulative_values + [base_value]
-                x_min, x_max = min(all_values), max(all_values)
-                margin = (x_max - x_min) * 0.15
-                ax.set_xlim(x_min - margin, x_max + margin)
-                ax.set_ylim(-2.0, 2.5)
-                
-                # 隐藏y轴
-                ax.set_yticks([])
-                ax.spines['left'].set_visible(False)
-                ax.spines['right'].set_visible(False)
-                ax.spines['top'].set_visible(False)
-                
-                # 设置标题和图例 - 更大字体
-                ax.set_title('SHAP Force Plot - Feature Contributions to Depression Prediction', 
-                           fontsize=20, fontweight='bold', pad=30)
-                
-                # 添加图例 - 更大更清晰
-                legend_elements = [
-                    patches.Patch(color=positive_color, alpha=0.8, label='Increases Depression Risk'),
-                    patches.Patch(color=negative_color, alpha=0.8, label='Decreases Depression Risk')
-                ]
-                ax.legend(handles=legend_elements, loc='upper right', fontsize=14, 
-                         framealpha=0.9, fancybox=True, shadow=True)
+                # 使用SHAP的waterfall plot
+                shap.plots.waterfall(shap.Explanation(
+                    values=shap_vals,
+                    base_values=expected_value,
+                    data=input_data.iloc[0].values,
+                    feature_names=input_data.columns.tolist()
+                ), show=False)
                 
                 plt.tight_layout()
-                print("✅ 自定义force plot创建成功")
+                print("✅ 原生SHAP waterfall plot创建成功")
+                return fig
+                
+            except Exception as waterfall_error:
+                print(f"原生waterfall plot失败: {waterfall_error}")
+                
+                # 备用：使用简化的waterfall实现
+                print("使用备用waterfall实现...")
+                
+                fig, ax = plt.subplots(figsize=(12, 8))
+                fig.patch.set_facecolor('white')
+                
+                # 获取特征信息
+                feature_values = input_data.iloc[0].values
+                feature_names = input_data.columns.tolist()
+                
+                # 创建waterfall数据
+                waterfall_data = []
+                waterfall_data.append(('Base', expected_value, expected_value))
+                
+                current_value = expected_value
+                for i, (name, value, shap_val) in enumerate(zip(feature_names, feature_values, shap_vals)):
+                    waterfall_data.append((f'{name}\n({value:.1f})', shap_val, current_value + shap_val))
+                    current_value += shap_val
+                
+                # 绘制waterfall图
+                x_pos = range(len(waterfall_data))
+                colors = ['gray'] + ['#ff6b6b' if d[1] > 0 else '#4ecdc4' for d in waterfall_data[1:]]
+                
+                for i, (label, contribution, cumulative) in enumerate(waterfall_data):
+                    if i == 0:  # Base value
+                        ax.bar(i, cumulative, color=colors[i], alpha=0.7, width=0.6)
+                        ax.text(i, cumulative + 0.5, f'{cumulative:.2f}', 
+                               ha='center', va='bottom', fontweight='bold', fontsize=11)
+                    else:
+                        # 显示贡献值
+                        prev_cumulative = waterfall_data[i-1][2]
+                        if contribution > 0:
+                            ax.bar(i, contribution, bottom=prev_cumulative, 
+                                  color=colors[i], alpha=0.8, width=0.6)
+                            ax.text(i, prev_cumulative + contribution/2, f'+{contribution:.2f}', 
+                                   ha='center', va='center', fontweight='bold', fontsize=10, color='white')
+                        else:
+                            ax.bar(i, abs(contribution), bottom=cumulative, 
+                                  color=colors[i], alpha=0.8, width=0.6)
+                            ax.text(i, cumulative + abs(contribution)/2, f'{contribution:.2f}', 
+                                   ha='center', va='center', fontweight='bold', fontsize=10, color='white')
+                        
+                        # 累积值标签
+                        ax.text(i, cumulative + 0.3, f'{cumulative:.2f}', 
+                               ha='center', va='bottom', fontweight='bold', fontsize=11)
+                
+                # 设置标签和样式
+                ax.set_xticks(x_pos)
+                ax.set_xticklabels([d[0] for d in waterfall_data], rotation=45, ha='right')
+                ax.set_ylabel('Value', fontsize=12, fontweight='bold')
+                ax.set_title('SHAP Waterfall Plot - Feature Contributions to Depression Prediction', 
+                           fontsize=14, fontweight='bold', pad=20)
+                
+                # 添加网格
+                ax.grid(True, alpha=0.3, axis='y')
+                ax.set_axisbelow(True)
+                
+                plt.tight_layout()
+                print("✅ 备用waterfall plot创建成功")
                 return fig
             
         except Exception as e:
@@ -1094,8 +1031,8 @@ class DepressionPredictionApp:
                                 if shap_result:
                                     shap_values, explainer = shap_result
                                     
-                                    # 创建SHAP force plot
-                                    fig = self.create_shap_force_plot(explainer, shap_values, input_data)
+                                    # 创建SHAP waterfall plot
+                                    fig = self.create_shap_waterfall_plot(explainer, shap_values, input_data)
                                     if fig:
                                         st.pyplot(fig)
                                         plt.close(fig)  # 释放内存
