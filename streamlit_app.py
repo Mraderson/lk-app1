@@ -285,25 +285,68 @@ class DepressionPredictionApp:
                             # 立即修复XGBoost/LightGBM的GPU兼容性问题
                             if model_name in ['XGBoost', 'LightGBM']:
                                 try:
-                                    # 强制移除GPU相关属性
-                                    gpu_attrs = ['gpu_id', 'device', 'tree_method']
+                                    # 强制移除所有可能的GPU相关属性
+                                    gpu_attrs = ['gpu_id', 'device', 'tree_method', '_Booster', 'predictor', 'gpu_hist']
                                     for attr in gpu_attrs:
                                         if hasattr(model, attr):
-                                            delattr(model, attr)
+                                            try:
+                                                delattr(model, attr)
+                                                print(f"    ✅ 移除{model_name}属性: {attr}")
+                                            except:
+                                                pass
                                     
-                                    # 设置为CPU模式
+                                    # 设置为CPU模式 - 多种方式确保成功
+                                    cpu_params = {
+                                        'device': 'cpu',
+                                        'tree_method': 'hist', 
+                                        'predictor': 'cpu_predictor'
+                                    }
+                                    
                                     if hasattr(model, 'set_param'):
-                                        model.set_param({'device': 'cpu'})
+                                        for key, value in cpu_params.items():
+                                            try:
+                                                model.set_param({key: value})
+                                                print(f"    ✅ {model_name}设置: {key}={value}")
+                                            except:
+                                                pass
                                     
                                     # 处理booster
                                     if hasattr(model, 'get_booster'):
-                                        booster = model.get_booster()
-                                        if hasattr(booster, 'set_param'):
-                                            booster.set_param({'device': 'cpu'})
+                                        try:
+                                            booster = model.get_booster()
+                                            if hasattr(booster, 'set_param'):
+                                                for key, value in cpu_params.items():
+                                                    try:
+                                                        booster.set_param({key: value})
+                                                        print(f"    ✅ {model_name} Booster设置: {key}={value}")
+                                                    except:
+                                                        pass
+                                        except:
+                                            pass
                                     
-                                    print(f"✅ {model_name} GPU兼容性已修复")
+                                    # 测试预测以确保模型工作正常
+                                    test_data = pd.DataFrame({
+                                        'parent_child_score': [17] if model_name == 'XGBoost' else [17],
+                                        'resilience_score': [7] if model_name == 'XGBoost' else [7],
+                                        'anxiety_score': [4] if model_name == 'XGBoost' else [4],
+                                        'phone_usage_score': [23] if model_name == 'XGBoost' else [23]
+                                    }) if model_name == 'XGBoost' else pd.DataFrame({
+                                        '亲子量表总得分': [17],
+                                        '韧性量表总得分': [7],
+                                        '焦虑量表总得分': [4],
+                                        '手机使用时间总得分': [23]
+                                    })
+                                    
+                                    try:
+                                        test_pred = model.predict(test_data)[0]
+                                        print(f"✅ {model_name} GPU兼容性修复成功，测试预测: {test_pred:.2f}")
+                                    except Exception as test_error:
+                                        print(f"⚠️ {model_name} 测试预测失败: {test_error}")
+                                        # 如果测试失败，标记但不阻止加载
+                                        
                                 except Exception as fix_error:
                                     print(f"⚠️ {model_name} GPU修复警告: {fix_error}")
+                                    # 即使修复失败也继续加载模型，稍后运行时再修复
                             
                             self.models[model_name] = model
                             loaded_models.append(model_name)
@@ -698,9 +741,36 @@ class DepressionPredictionApp:
                                     st.success(f"✅ {selected_model} 模型修复成功！")
                                     
                                 except Exception as final_error:
-                                    st.error(f"⚠️ {selected_model} 模型存在GPU兼容性问题，建议使用其他模型")
-                                    st.info("💡 推荐使用 LinearRegression 或 Ridge 模型，它们更稳定")
-                                    return
+                                    # 如果所有修复尝试都失败，尝试重新加载模型
+                                    try:
+                                        st.info("🔧 正在重新加载并修复模型...")
+                                        models_dir = current_dir / 'models'
+                                        model_path = models_dir / f'{selected_model}_model.pkl'
+                                        
+                                        with open(model_path, 'rb') as f:
+                                            fresh_model = pickle.load(f)
+                                        
+                                        # 彻底清理GPU属性
+                                        for attr in ['gpu_id', 'device', 'tree_method', '_Booster', 'predictor']:
+                                            if hasattr(fresh_model, attr):
+                                                try:
+                                                    delattr(fresh_model, attr)
+                                                except:
+                                                    pass
+                                        
+                                        # 强制设置CPU参数
+                                        if hasattr(fresh_model, 'set_param'):
+                                            fresh_model.set_param({'device': 'cpu', 'tree_method': 'hist'})
+                                        
+                                        # 重试预测
+                                        prediction = fresh_model.predict(input_data)[0]
+                                        self.models[selected_model] = fresh_model
+                                        st.success(f"✅ {selected_model} 模型重新加载并修复成功！")
+                                        
+                                    except Exception as reload_error:
+                                        st.error(f"⚠️ {selected_model} 模型存在GPU兼容性问题，建议使用其他模型")
+                                        st.info("💡 推荐使用 LinearRegression 或 Ridge 模型，它们更稳定")
+                                        return
                             else:
                                 raise pred_error
                     
