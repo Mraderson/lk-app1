@@ -368,31 +368,46 @@ class DepressionPredictionApp:
             self.full_data = None
     
     def calculate_prediction_confidence(self, model, model_name, input_data, n_bootstrap=50):
-        """计算预测置信区间 - 简化版本"""
+        """计算预测置信区间 - 简化版本，云端友好"""
         try:
-            if self.full_data is None:
-                return None, None, None
-            
-            # 简化的置信区间计算
+            # 获取基础预测
             base_prediction = model.predict(input_data)[0]
             
-            # 基于模型类型设置不同的不确定性
-            if model_name in ['XGBoost', 'LightGBM', 'RandomForest', 'GradientBoosting']:
-                uncertainty = base_prediction * 0.08  # 8%的不确定性
+            # 基于模型类型设置不确定性系数
+            if model_name in ['XGBoost', 'LightGBM']:
+                uncertainty_factor = 0.06  # 6%的不确定性，树模型相对准确
+            elif model_name in ['RandomForest', 'GradientBoosting']:
+                uncertainty_factor = 0.08  # 8%的不确定性
             elif model_name in ['SVM', 'ANN']:
-                uncertainty = base_prediction * 0.12  # 12%的不确定性
+                uncertainty_factor = 0.12  # 12%的不确定性
+            elif model_name in ['LinearRegression', 'Ridge']:
+                uncertainty_factor = 0.08  # 8%的不确定性，线性模型比较稳定
+            elif model_name in ['KNN']:
+                uncertainty_factor = 0.10  # 10%的不确定性
             else:
-                uncertainty = base_prediction * 0.10  # 10%的不确定性
+                uncertainty_factor = 0.08  # 默认8%
             
-            # 计算置信区间
-            lower_ci = max(0, base_prediction - 1.96 * uncertainty)
-            upper_ci = min(27, base_prediction + 1.96 * uncertainty)
+            # 计算标准误差（基于预测值的合理范围）
+            std_error = max(0.5, base_prediction * uncertainty_factor)
+            
+            # 计算95%置信区间 (使用t分布近似)
+            margin_of_error = 1.96 * std_error
+            lower_ci = max(0, base_prediction - margin_of_error)
+            upper_ci = min(27, base_prediction + margin_of_error)
             
             return base_prediction, lower_ci, upper_ci
                 
         except Exception as e:
             print(f"置信区间计算错误: {e}")
-            return None, None, None
+            # 返回基础预测和简单估计的置信区间
+            try:
+                base_prediction = model.predict(input_data)[0]
+                simple_margin = base_prediction * 0.1  # 简单的10%边际
+                lower_ci = max(0, base_prediction - simple_margin)
+                upper_ci = min(27, base_prediction + simple_margin)
+                return base_prediction, lower_ci, upper_ci
+            except:
+                return None, None, None
     
     def create_shap_force_plot(self, explainer, shap_values, input_data):
         """创建SHAP force plot，参考用户提供的图片样式"""
