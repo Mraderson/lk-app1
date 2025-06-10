@@ -282,71 +282,9 @@ class DepressionPredictionApp:
                         with open(model_path, 'rb') as f:
                             model = pickle.load(f)
                             
-                            # 立即修复XGBoost/LightGBM的GPU兼容性问题
+                            # 标记需要GPU兼容性处理的模型，但不在加载时修改
                             if model_name in ['XGBoost', 'LightGBM']:
-                                try:
-                                    # 强制移除所有可能的GPU相关属性
-                                    gpu_attrs = ['gpu_id', 'device', 'tree_method', '_Booster', 'predictor', 'gpu_hist']
-                                    for attr in gpu_attrs:
-                                        if hasattr(model, attr):
-                                            try:
-                                                delattr(model, attr)
-                                                print(f"    ✅ 移除{model_name}属性: {attr}")
-                                            except:
-                                                pass
-                                    
-                                    # 设置为CPU模式 - 多种方式确保成功
-                                    cpu_params = {
-                                        'device': 'cpu',
-                                        'tree_method': 'hist', 
-                                        'predictor': 'cpu_predictor'
-                                    }
-                                    
-                                    if hasattr(model, 'set_param'):
-                                        for key, value in cpu_params.items():
-                                            try:
-                                                model.set_param({key: value})
-                                                print(f"    ✅ {model_name}设置: {key}={value}")
-                                            except:
-                                                pass
-                                    
-                                    # 处理booster
-                                    if hasattr(model, 'get_booster'):
-                                        try:
-                                            booster = model.get_booster()
-                                            if hasattr(booster, 'set_param'):
-                                                for key, value in cpu_params.items():
-                                                    try:
-                                                        booster.set_param({key: value})
-                                                        print(f"    ✅ {model_name} Booster设置: {key}={value}")
-                                                    except:
-                                                        pass
-                                        except:
-                                            pass
-                                    
-                                    # 测试预测以确保模型工作正常
-                                    test_data = pd.DataFrame({
-                                        'parent_child_score': [17] if model_name == 'XGBoost' else [17],
-                                        'resilience_score': [7] if model_name == 'XGBoost' else [7],
-                                        'anxiety_score': [4] if model_name == 'XGBoost' else [4],
-                                        'phone_usage_score': [23] if model_name == 'XGBoost' else [23]
-                                    }) if model_name == 'XGBoost' else pd.DataFrame({
-                                        '亲子量表总得分': [17],
-                                        '韧性量表总得分': [7],
-                                        '焦虑量表总得分': [4],
-                                        '手机使用时间总得分': [23]
-                                    })
-                                    
-                                    try:
-                                        test_pred = model.predict(test_data)[0]
-                                        print(f"✅ {model_name} GPU兼容性修复成功，测试预测: {test_pred:.2f}")
-                                    except Exception as test_error:
-                                        print(f"⚠️ {model_name} 测试预测失败: {test_error}")
-                                        # 如果测试失败，标记但不阻止加载
-                                        
-                                except Exception as fix_error:
-                                    print(f"⚠️ {model_name} GPU修复警告: {fix_error}")
-                                    # 即使修复失败也继续加载模型，稍后运行时再修复
+                                print(f"✅ {model_name} 模型加载成功（将在预测时处理GPU兼容性）")
                             
                             self.models[model_name] = model
                             loaded_models.append(model_name)
@@ -712,67 +650,48 @@ class DepressionPredictionApp:
                                 # 如果深度修复失败，使用原模型
                                 model = self.models[selected_model]
                         
-                        # 进行预测，如果还是失败就跳过这个模型
-                        try:
-                            prediction = model.predict(input_data)[0]
-                        except Exception as pred_error:
-                            if 'gpu_id' in str(pred_error) or 'device' in str(pred_error):
-                                # 尝试最后的修复
-                                try:
-                                    st.info("🔧 正在尝试最终修复...")
-                                    import copy
-                                    model_final_fix = copy.deepcopy(model)
-                                    
-                                    # 超级强力修复
-                                    for attr in ['gpu_id', 'device', 'tree_method', '_Booster']:
-                                        if hasattr(model_final_fix, attr):
+                        # 安全预测函数 - 直接使用原模型，如果GPU错误就用安全模式
+                        def safe_predict(model, data, model_name):
+                            """安全预测函数，处理GPU兼容性问题"""
+                            try:
+                                # 首先尝试直接预测
+                                return model.predict(data)[0]
+                            except Exception as e:
+                                error_str = str(e).lower()
+                                if any(keyword in error_str for keyword in ['gpu', 'device', 'cuda']):
+                                    st.info(f"🔧 检测到GPU兼容性问题，正在切换到CPU模式...")
+                                    try:
+                                        # 创建模型副本进行修复
+                                        import copy
+                                        model_copy = copy.deepcopy(model)
+                                        
+                                        # 温和地设置CPU参数，不删除关键属性
+                                        if hasattr(model_copy, 'set_param'):
                                             try:
-                                                delattr(model_final_fix, attr)
+                                                model_copy.set_param({'device': 'cpu'})
+                                                model_copy.set_param({'tree_method': 'hist'})
                                             except:
                                                 pass
-                                    
-                                    # 强制设置CPU模式
-                                    if hasattr(model_final_fix, 'set_param'):
-                                        model_final_fix.set_param({'device': 'cpu'})
-                                    
-                                    # 重试预测
-                                    prediction = model_final_fix.predict(input_data)[0]
-                                    self.models[selected_model] = model_final_fix  # 保存修复后的模型
-                                    st.success(f"✅ {selected_model} 模型修复成功！")
-                                    
-                                except Exception as final_error:
-                                    # 如果所有修复尝试都失败，尝试重新加载模型
-                                    try:
-                                        st.info("🔧 正在重新加载并修复模型...")
-                                        models_dir = current_dir / 'models'
-                                        model_path = models_dir / f'{selected_model}_model.pkl'
-                                        
-                                        with open(model_path, 'rb') as f:
-                                            fresh_model = pickle.load(f)
-                                        
-                                        # 彻底清理GPU属性
-                                        for attr in ['gpu_id', 'device', 'tree_method', '_Booster', 'predictor']:
-                                            if hasattr(fresh_model, attr):
-                                                try:
-                                                    delattr(fresh_model, attr)
-                                                except:
-                                                    pass
-                                        
-                                        # 强制设置CPU参数
-                                        if hasattr(fresh_model, 'set_param'):
-                                            fresh_model.set_param({'device': 'cpu', 'tree_method': 'hist'})
                                         
                                         # 重试预测
-                                        prediction = fresh_model.predict(input_data)[0]
-                                        self.models[selected_model] = fresh_model
-                                        st.success(f"✅ {selected_model} 模型重新加载并修复成功！")
+                                        result = model_copy.predict(data)[0]
+                                        st.success(f"✅ {model_name} 已成功切换到CPU模式")
+                                        return result
                                         
-                                    except Exception as reload_error:
-                                        st.error(f"⚠️ {selected_model} 模型存在GPU兼容性问题，建议使用其他模型")
-                                        st.info("💡 推荐使用 LinearRegression 或 Ridge 模型，它们更稳定")
-                                        return
-                            else:
-                                raise pred_error
+                                    except Exception as cpu_error:
+                                        # 如果CPU模式也失败，抛出原始错误
+                                        raise e
+                                else:
+                                    # 非GPU相关错误，直接抛出
+                                    raise e
+                        
+                        # 使用安全预测函数
+                        try:
+                            prediction = safe_predict(model, input_data, selected_model)
+                        except Exception as pred_error:
+                            st.error(f"预测失败: {pred_error}")
+                            st.info("请尝试选择其他模型或检查输入数据")
+                            return
                     
                     print(f"✅ {selected_model} 预测成功，结果: {prediction}")
                     
