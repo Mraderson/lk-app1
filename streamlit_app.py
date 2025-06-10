@@ -448,12 +448,27 @@ class DepressionPredictionApp:
                 fig = plt.figure(figsize=(16, 10))
                 fig.patch.set_facecolor('white')
                 
+                # 使用英文特征名称避免乱码
+                feature_name_mapping = {
+                    '亲子量表总得分': 'Parent-Child Scale',
+                    '韧性量表总得分': 'Resilience Scale', 
+                    '焦虑量表总得分': 'Anxiety Scale',
+                    '手机使用时间总得分': 'Phone Usage Scale',
+                    'parent_child_score': 'Parent-Child Scale',
+                    'resilience_score': 'Resilience Scale',
+                    'anxiety_score': 'Anxiety Scale', 
+                    'phone_usage_score': 'Phone Usage Scale'
+                }
+                
+                # 转换特征名称为英文
+                english_feature_names = [feature_name_mapping.get(name, name) for name in input_data.columns.tolist()]
+                
                 # 使用SHAP的waterfall plot
                 shap.plots.waterfall(shap.Explanation(
                     values=shap_vals,
                     base_values=expected_value,
                     data=input_data.iloc[0].values,
-                    feature_names=input_data.columns.tolist()
+                    feature_names=english_feature_names
                 ), show=False)
                 
                 plt.tight_layout()
@@ -469,9 +484,19 @@ class DepressionPredictionApp:
                 fig, ax = plt.subplots(figsize=(12, 8))
                 fig.patch.set_facecolor('white')
                 
-                # 获取特征信息
+                # 获取特征信息 - 统一使用英文避免乱码
                 feature_values = input_data.iloc[0].values
-                feature_names = input_data.columns.tolist()
+                feature_name_mapping = {
+                    '亲子量表总得分': 'Parent-Child Scale',
+                    '韧性量表总得分': 'Resilience Scale', 
+                    '焦虑量表总得分': 'Anxiety Scale',
+                    '手机使用时间总得分': 'Phone Usage Scale',
+                    'parent_child_score': 'Parent-Child Scale',
+                    'resilience_score': 'Resilience Scale',
+                    'anxiety_score': 'Anxiety Scale', 
+                    'phone_usage_score': 'Phone Usage Scale'
+                }
+                feature_names = [feature_name_mapping.get(name, name) for name in input_data.columns.tolist()]
                 
                 # 创建waterfall数据
                 waterfall_data = []
