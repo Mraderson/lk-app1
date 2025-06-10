@@ -410,11 +410,10 @@ class DepressionPredictionApp:
                 return None, None, None
     
     def create_shap_force_plot(self, explainer, shap_values, input_data):
-        """创建清晰的SHAP force plot，提供单一模型预测的可解释性"""
+        """使用原生SHAP force plot，提供清晰的可解释性可视化"""
         try:
             import matplotlib.pyplot as plt
-            import matplotlib.patches as patches
-            print(f"开始创建SHAP force plot图表...")
+            print(f"开始创建原生SHAP force plot...")
             
             # 强制清除matplotlib缓存和重新配置
             plt.style.use('default')
@@ -422,18 +421,12 @@ class DepressionPredictionApp:
             plt.rcParams.update(plt.rcParamsDefault)
             plt.switch_backend('Agg')
             
-            # 设置字体
-            try:
-                plt.rcParams['font.family'] = 'sans-serif'
-                plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Liberation Sans', 'Arial', 'Helvetica']
-                plt.rcParams['axes.unicode_minus'] = False
-                plt.rcParams['figure.facecolor'] = 'white'
-            except:
-                pass
-            
-            # 获取特征值和名称 - 使用英文避免字体问题
-            feature_values = input_data.iloc[0].values
-            feature_names = ['Parent-Child', 'Resilience', 'Anxiety', 'Phone Usage']
+            # 设置高质量图表参数
+            plt.rcParams['figure.facecolor'] = 'white'
+            plt.rcParams['axes.facecolor'] = 'white'
+            plt.rcParams['figure.dpi'] = 100
+            plt.rcParams['savefig.dpi'] = 150
+            plt.rcParams['font.size'] = 10
             
             # 获取基准值和SHAP值
             expected_value = explainer.expected_value
@@ -445,124 +438,63 @@ class DepressionPredictionApp:
             else:
                 shap_vals = shap_values
             
-            # 计算预测值
-            prediction = expected_value + np.sum(shap_vals)
-            
-            # 创建图形 - 宽屏适合force plot
-            fig, ax = plt.subplots(figsize=(16, 6))
-            fig.patch.set_facecolor('white')
-            
-            # 按SHAP值大小排序，但保持正负分开
-            feature_data = list(zip(feature_names, feature_values, shap_vals))
-            # 分离正负值
-            positive_features = [(n, v, s) for n, v, s in feature_data if s > 0]
-            negative_features = [(n, v, s) for n, v, s in feature_data if s <= 0]
-            
-            # 分别按绝对值排序
-            positive_features.sort(key=lambda x: abs(x[2]), reverse=True)
-            negative_features.sort(key=lambda x: abs(x[2]), reverse=True)
-            
-            # 重新组合：正值在左，负值在右
-            ordered_features = positive_features + negative_features
-            
-            # 计算累积位置
-            current_x = expected_value
-            positions = [current_x]
-            
-            for _, _, shap_val in ordered_features:
-                current_x += shap_val
-                positions.append(current_x)
-            
-            # 设置颜色
-            higher_color = '#FF6B6B'  # 红色系 - 推高预测
-            lower_color = '#4ECDC4'   # 蓝绿色 - 拉低预测
-            
-            # 绘制force plot的水平条形
-            y_center = 0.5
-            bar_height = 0.4
-            
-            # 绘制基准线
-            ax.axvline(x=expected_value, color='#666666', linestyle='--', alpha=0.7, linewidth=1)
-            ax.text(expected_value, y_center + 0.7, f'base value\n{expected_value:.3f}', 
-                   ha='center', va='bottom', fontsize=10, color='#666666')
-            
-            # 绘制每个特征的贡献
-            for i, (name, value, shap_val) in enumerate(ordered_features):
-                start_x = positions[i]
-                end_x = positions[i + 1]
-                width = abs(shap_val)
+            # 使用原生SHAP force plot
+            try:
+                # 方法1: 尝试使用shap.plots.force (新版本)
+                import shap
+                fig = plt.figure(figsize=(16, 6))
+                fig.patch.set_facecolor('white')
                 
-                # 确定颜色和方向
-                if shap_val > 0:
-                    color = higher_color
-                    x_pos = start_x
-                else:
-                    color = lower_color
-                    x_pos = end_x
+                # 使用matplotlib方式的force plot
+                shap.plots.force(explainer.expected_value, shap_vals, input_data.iloc[0], 
+                               matplotlib=True, show=False, figsize=(16, 6))
                 
-                # 绘制水平条形
-                rect = patches.Rectangle((x_pos, y_center - bar_height/2), 
-                                       abs(shap_val), bar_height,
-                                       facecolor=color, edgecolor='white', 
-                                       linewidth=1, alpha=0.8)
-                ax.add_patch(rect)
+                plt.tight_layout()
+                return fig
                 
-                # 在条形上方添加SHAP值标签
-                mid_x = (start_x + end_x) / 2
-                ax.text(mid_x, y_center + bar_height/2 + 0.1, 
-                       f'{shap_val:+.2f}', ha='center', va='bottom', 
-                       fontsize=10, fontweight='bold', color=color)
+            except Exception as e1:
+                print(f"新版SHAP force plot失败: {e1}")
                 
-                # 在条形下方添加特征信息
-                ax.text(mid_x, y_center - bar_height/2 - 0.1, 
-                       f'{name}\n{value:.0f}', ha='center', va='top', 
-                       fontsize=9, color='black')
-            
-            # 添加最终预测值标记
-            ax.axvline(x=prediction, color='black', linestyle='-', linewidth=2)
-            ax.text(prediction, y_center + 0.7, f'Prediction\n{prediction:.3f}', 
-                   ha='center', va='bottom', fontsize=11, fontweight='bold', color='black')
-            
-            # 设置图表范围和样式
-            all_values = [expected_value] + positions
-            x_min, x_max = min(all_values), max(all_values)
-            margin = (x_max - x_min) * 0.1
-            ax.set_xlim(x_min - margin, x_max + margin)
-            ax.set_ylim(-0.5, 1.5)
-            
-            # 隐藏y轴
-            ax.set_yticks([])
-            ax.spines['left'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
-            
-            # 设置x轴
-            ax.spines['bottom'].set_color('#CCCCCC')
-            ax.tick_params(axis='x', colors='#666666')
-            
-            # 添加标题
-            ax.set_title('SHAP Force Plot - Feature Contributions to Depression Prediction', 
-                        fontsize=14, fontweight='bold', pad=20)
-            
-            # 添加图例
-            legend_elements = [
-                patches.Patch(color=higher_color, alpha=0.8, label='Higher Risk'),
-                patches.Patch(color=lower_color, alpha=0.8, label='Lower Risk')
-            ]
-            ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
-            
-            plt.tight_layout()
-            return fig
+                try:
+                    # 方法2: 尝试使用传统的force_plot
+                    import shap
+                    fig = plt.figure(figsize=(16, 6))
+                    fig.patch.set_facecolor('white')
+                    
+                    shap.force_plot(explainer.expected_value, shap_vals, input_data.iloc[0], 
+                                  matplotlib=True, show=False, figsize=(16, 6))
+                    
+                    plt.tight_layout()
+                    return fig
+                    
+                except Exception as e2:
+                    print(f"传统SHAP force plot失败: {e2}")
+                    
+                    try:
+                        # 方法3: 使用waterfall plot作为备选
+                        import shap
+                        fig = plt.figure(figsize=(16, 8))
+                        fig.patch.set_facecolor('white')
+                        
+                        shap.plots.waterfall(explainer.expected_value, shap_vals, input_data.iloc[0], 
+                                           show=False)
+                        
+                        plt.tight_layout()
+                        return fig
+                        
+                    except Exception as e3:
+                        print(f"SHAP waterfall plot也失败: {e3}")
+                        return None
             
         except Exception as e:
-            st.error(f"创建SHAP force plot失败: {e}")
+            st.error(f"创建SHAP图表失败: {e}")
             print(f"SHAP图表错误详情: {e}")
             import traceback
             traceback.print_exc()
             return None
     
-    def generate_detailed_explanation(self, explainer, shap_values, input_data, model_name, prediction):
-        """为每次测试结果提供详细的中文解释"""
+    def generate_simple_explanation(self, explainer, shap_values, input_data, model_name, prediction):
+        """为每次测试结果提供简洁美观的解释"""
         try:
             # 获取特征值和名称
             feature_values = input_data.iloc[0].values
@@ -578,89 +510,65 @@ class DepressionPredictionApp:
             else:
                 shap_vals = shap_values
             
-            # 分析特征贡献
-            feature_data = list(zip(feature_names, feature_values, shap_vals))
-            
-            # 分离正负贡献
-            positive_features = [(n, v, s) for n, v, s in feature_data if s > 0]
-            negative_features = [(n, v, s) for n, v, s in feature_data if s <= 0]
-            
-            # 按绝对值排序
-            positive_features.sort(key=lambda x: abs(x[2]), reverse=True)
-            negative_features.sort(key=lambda x: abs(x[2]), reverse=True)
-            
             # 风险等级判断
             if prediction > 14:
                 risk_level = "高风险"
                 risk_color = "#e74c3c"
-                risk_description = "需要立即关注和专业干预"
+                risk_emoji = "🔴"
             elif prediction > 7:
                 risk_level = "中风险"
                 risk_color = "#f39c12"
-                risk_description = "建议寻求专业咨询和支持"
+                risk_emoji = "🟡"
             else:
                 risk_level = "低风险"
                 risk_color = "#27ae60"
-                risk_description = "目前心理状态相对良好"
+                risk_emoji = "🟢"
             
-            # 生成详细解释
+            # 找出最重要的影响因素
+            feature_data = list(zip(feature_names, feature_values, shap_vals))
+            sorted_features = sorted(feature_data, key=lambda x: abs(x[2]), reverse=True)
+            
+            # 主要影响因素分析
+            main_factor = sorted_features[0]
+            if main_factor[2] > 0:
+                main_effect = f"{main_factor[0]}({main_factor[1]:.0f}分)对预测结果产生了正向影响(+{main_factor[2]:.2f})"
+                effect_desc = "增加了抑郁倾向"
+            else:
+                main_effect = f"{main_factor[0]}({main_factor[1]:.0f}分)对预测结果产生了负向影响({main_factor[2]:.2f})"
+                effect_desc = "降低了抑郁倾向"
+            
+            # 生成简洁解释
             explanation = f"""
-            ## 📊 预测结果详细分析
-            
-            ### 🎯 总体评估
-            - **预测得分**: {prediction:.2f}分 (满分27分)
-            - **风险等级**: <span style="color: {risk_color}; font-weight: bold;">{risk_level}</span>
-            - **评估建议**: {risk_description}
-            - **模型基准值**: {expected_value:.3f}分 (基于训练数据的平均水平)
-            
-            ### 📈 特征影响分析
-            
-            #### 🔴 增加抑郁风险的因素：
-            """
-            
-            if positive_features:
-                for name, value, shap_val in positive_features:
-                    percentage = (shap_val / abs(sum(shap_vals))) * 100
-                    explanation += f"""
-            - **{name}**: {value:.0f}分
-              - 贡献值: +{shap_val:.3f} (占总影响的{percentage:.1f}%)
-              - 影响分析: {self._get_feature_analysis(name, value, shap_val, 'positive')}
-            """
-            else:
-                explanation += "\n- 暂无显著增加抑郁风险的因素\n"
-            
-            explanation += """
-            #### 🔵 降低抑郁风险的因素：
-            """
-            
-            if negative_features:
-                for name, value, shap_val in negative_features:
-                    percentage = (abs(shap_val) / abs(sum(shap_vals))) * 100
-                    explanation += f"""
-            - **{name}**: {value:.0f}分
-              - 贡献值: {shap_val:.3f} (占总影响的{percentage:.1f}%)
-              - 影响分析: {self._get_feature_analysis(name, value, shap_val, 'negative')}
-            """
-            else:
-                explanation += "\n- 暂无显著降低抑郁风险的因素\n"
-            
-            # 添加综合建议
-            explanation += f"""
-            
-            ### 💡 个性化建议
-            
-            {self._get_personalized_recommendations(feature_data, prediction, risk_level)}
-            
-            ### ⚠️ 重要提醒
-            - 此预测结果仅供参考，不能替代专业医疗诊断
-            - 如有持续的情绪困扰，建议及时寻求专业心理健康服务
-            - 预测基于{model_name}模型，准确率约为85-90%
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        padding: 25px; border-radius: 15px; margin: 20px 0; 
+                        box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
+                <div style="color: white; font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;">
+                    <h3 style="margin: 0 0 15px 0; font-weight: 300; font-size: 24px;">
+                        🧠 智能分析结果
+                    </h3>
+                    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; 
+                                backdrop-filter: blur(10px);">
+                        <p style="font-size: 18px; margin: 0 0 12px 0; line-height: 1.6;">
+                            {risk_emoji} 根据{model_name}模型分析，您的<strong style="color: {risk_color};">抑郁风险等级为{risk_level}</strong>，
+                            预测得分<strong>{prediction:.1f}分</strong>(满分27分)。
+                        </p>
+                        <p style="font-size: 16px; margin: 0; line-height: 1.6; opacity: 0.9;">
+                            主要影响因素：{main_effect}，{effect_desc}。
+                            建议关注心理健康状态，如有需要及时寻求专业帮助。
+                        </p>
+                    </div>
+                </div>
+            </div>
             """
             
             return explanation
             
         except Exception as e:
-            return f"生成详细解释时出错: {str(e)}"
+            return f"""
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #dc3545;">
+                <p style="color: #721c24; margin: 0;">生成解释时出错: {str(e)}</p>
+            </div>
+            """
     
     def _get_feature_analysis(self, feature_name, value, shap_val, direction):
         """根据特征名称、数值和SHAP值生成具体分析"""
@@ -1091,8 +999,8 @@ class DepressionPredictionApp:
                                         st.pyplot(fig)
                                         plt.close(fig)  # 释放内存
                                         
-                                        # 生成并显示详细的中文解释
-                                        explanation = self.generate_detailed_explanation(
+                                        # 生成并显示简洁的中文解释
+                                        explanation = self.generate_simple_explanation(
                                             explainer, shap_values, input_data, selected_model, final_prediction
                                         )
                                         st.markdown(explanation, unsafe_allow_html=True)
