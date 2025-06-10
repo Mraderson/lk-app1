@@ -410,10 +410,11 @@ class DepressionPredictionApp:
                 return None, None, None
     
     def create_shap_force_plot(self, explainer, shap_values, input_data):
-        """使用原生SHAP force plot，提供清晰的可解释性可视化"""
+        """创建SHAP force plot，兼容Streamlit显示"""
         try:
             import matplotlib.pyplot as plt
-            print(f"开始创建原生SHAP force plot...")
+            import matplotlib.patches as patches
+            print(f"开始创建SHAP force plot...")
             
             # 强制清除matplotlib缓存和重新配置
             plt.style.use('default')
@@ -438,53 +439,140 @@ class DepressionPredictionApp:
             else:
                 shap_vals = shap_values
             
-            # 使用原生SHAP force plot
+            # 首先尝试原生SHAP图表
             try:
-                # 方法1: 尝试使用shap.plots.force (新版本)
                 import shap
-                fig = plt.figure(figsize=(16, 6))
+                # 尝试使用SHAP的force plot
+                print("尝试使用原生SHAP force plot...")
+                
+                # 创建图形
+                fig, ax = plt.subplots(figsize=(16, 6))
                 fig.patch.set_facecolor('white')
                 
-                # 使用matplotlib方式的force plot
-                shap.plots.force(explainer.expected_value, shap_vals, input_data.iloc[0], 
-                               matplotlib=True, show=False, figsize=(16, 6))
+                # 使用shap的内部函数来绘制force plot
+                try:
+                    # 新版本SHAP
+                    shap.plots.force(expected_value, shap_vals, input_data.iloc[0], 
+                                   matplotlib=True, show=False)
+                    print("✅ 新版SHAP force plot成功")
+                    plt.tight_layout()
+                    return plt.gcf()
+                except:
+                    try:
+                        # 旧版本SHAP
+                        shap.force_plot(expected_value, shap_vals, input_data.iloc[0], 
+                                      matplotlib=True, show=False)
+                        print("✅ 旧版SHAP force plot成功")
+                        plt.tight_layout()
+                        return plt.gcf()
+                    except:
+                        # SHAP原生方法失败，使用自定义实现
+                        print("原生SHAP失败，使用自定义force plot...")
+                        plt.close(fig)
+                        raise Exception("原生SHAP不可用")
+                        
+            except Exception as shap_error:
+                print(f"原生SHAP失败: {shap_error}")
+                
+                # 使用自定义的force plot实现
+                print("使用自定义force plot实现...")
+                
+                # 获取特征信息
+                feature_values = input_data.iloc[0].values
+                feature_names = input_data.columns.tolist()
+                
+                # 创建图形
+                fig, ax = plt.subplots(figsize=(16, 6))
+                fig.patch.set_facecolor('white')
+                
+                # 计算累积效应
+                base_value = expected_value
+                cumulative_values = [base_value]
+                current = base_value
+                
+                for shap_val in shap_vals:
+                    current += shap_val
+                    cumulative_values.append(current)
+                
+                # 绘制基线
+                ax.axhline(y=0, color='black', linestyle='-', alpha=0.3, linewidth=1)
+                
+                # 绘制force plot的箭头和条形
+                y_pos = 0
+                bar_height = 0.6
+                
+                # 颜色设置
+                positive_color = '#ff6b6b'  # 红色 - 增加风险
+                negative_color = '#4ecdc4'  # 蓝绿色 - 降低风险
+                
+                # 绘制每个特征的贡献
+                for i, (name, value, shap_val) in enumerate(zip(feature_names, feature_values, shap_vals)):
+                    start_x = cumulative_values[i]
+                    end_x = cumulative_values[i + 1]
+                    
+                    # 确定颜色
+                    color = positive_color if shap_val > 0 else negative_color
+                    
+                    # 绘制水平条形
+                    if shap_val > 0:
+                        rect = patches.Rectangle((start_x, y_pos - bar_height/2), 
+                                               abs(shap_val), bar_height,
+                                               facecolor=color, alpha=0.7, 
+                                               edgecolor='white', linewidth=1)
+                    else:
+                        rect = patches.Rectangle((end_x, y_pos - bar_height/2), 
+                                               abs(shap_val), bar_height,
+                                               facecolor=color, alpha=0.7, 
+                                               edgecolor='white', linewidth=1)
+                    ax.add_patch(rect)
+                    
+                    # 添加特征标签
+                    mid_x = (start_x + end_x) / 2
+                    ax.text(mid_x, y_pos + bar_height/2 + 0.15, 
+                           f'{shap_val:+.2f}', ha='center', va='bottom', 
+                           fontsize=10, fontweight='bold', color=color)
+                    
+                    ax.text(mid_x, y_pos - bar_height/2 - 0.15, 
+                           f'{name}\n{value:.1f}', ha='center', va='top', 
+                           fontsize=9, rotation=0)
+                
+                # 标记基准值和预测值
+                ax.axvline(x=base_value, color='gray', linestyle='--', alpha=0.8, linewidth=2)
+                ax.text(base_value, y_pos + 1, f'Base\n{base_value:.2f}', 
+                       ha='center', va='bottom', fontsize=11, fontweight='bold')
+                
+                final_pred = cumulative_values[-1]
+                ax.axvline(x=final_pred, color='black', linestyle='-', linewidth=3)
+                ax.text(final_pred, y_pos + 1, f'Prediction\n{final_pred:.2f}', 
+                       ha='center', va='bottom', fontsize=11, fontweight='bold')
+                
+                # 设置图表样式
+                all_values = cumulative_values + [base_value]
+                x_min, x_max = min(all_values), max(all_values)
+                margin = (x_max - x_min) * 0.1
+                ax.set_xlim(x_min - margin, x_max + margin)
+                ax.set_ylim(-1.5, 1.5)
+                
+                # 隐藏y轴
+                ax.set_yticks([])
+                ax.spines['left'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.spines['top'].set_visible(False)
+                
+                # 设置标题和图例
+                ax.set_title('SHAP Force Plot - Feature Contributions to Depression Prediction', 
+                           fontsize=16, fontweight='bold', pad=20)
+                
+                # 添加图例
+                legend_elements = [
+                    patches.Patch(color=positive_color, alpha=0.7, label='Increases Risk'),
+                    patches.Patch(color=negative_color, alpha=0.7, label='Decreases Risk')
+                ]
+                ax.legend(handles=legend_elements, loc='upper right', fontsize=12)
                 
                 plt.tight_layout()
+                print("✅ 自定义force plot创建成功")
                 return fig
-                
-            except Exception as e1:
-                print(f"新版SHAP force plot失败: {e1}")
-                
-                try:
-                    # 方法2: 尝试使用传统的force_plot
-                    import shap
-                    fig = plt.figure(figsize=(16, 6))
-                    fig.patch.set_facecolor('white')
-                    
-                    shap.force_plot(explainer.expected_value, shap_vals, input_data.iloc[0], 
-                                  matplotlib=True, show=False, figsize=(16, 6))
-                    
-                    plt.tight_layout()
-                    return fig
-                    
-                except Exception as e2:
-                    print(f"传统SHAP force plot失败: {e2}")
-                    
-                    try:
-                        # 方法3: 使用waterfall plot作为备选
-                        import shap
-                        fig = plt.figure(figsize=(16, 8))
-                        fig.patch.set_facecolor('white')
-                        
-                        shap.plots.waterfall(explainer.expected_value, shap_vals, input_data.iloc[0], 
-                                           show=False)
-                        
-                        plt.tight_layout()
-                        return fig
-                        
-                    except Exception as e3:
-                        print(f"SHAP waterfall plot也失败: {e3}")
-                        return None
             
         except Exception as e:
             st.error(f"创建SHAP图表失败: {e}")
