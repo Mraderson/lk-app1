@@ -241,9 +241,11 @@ st.markdown("""
 class DepressionPredictionApp:
     def __init__(self):
         self.models = {}
-        # 只使用经过测试能正常工作的模型
+        # 加载所有可用的模型
         self.available_models = [
-            'XGBoost', 'LightGBM', 'KNN', 'LinearRegression', 'Ridge'
+            'XGBoost', 'LightGBM', 'RandomForest', 'GradientBoosting', 
+            'ExtraTrees', 'AdaBoost', 'SVM', 'ANN', 'DecisionTree', 
+            'EnsembleBagging', 'KNN', 'LinearRegression', 'Ridge'
         ]
         
         # 特征名称映射
@@ -259,63 +261,104 @@ class DepressionPredictionApp:
         self.load_background_data()
     
     def load_models(self):
-        """加载可用的模型"""
+        """改进的模型加载方法 - 支持多种加载方式"""
         models_dir = current_dir / 'models'
+        loaded_models = []
         
-        # 只加载经过测试的工作模型
-        model_files = {
+        # 定义要加载的6个模型文件名映射
+        selected_model_files = {
             'XGBoost': 'XGBoost_model.pkl',
-            'LightGBM': 'LightGBM_model.pkl',
+            'LightGBM': 'LightGBM_model.pkl', 
             'KNN': 'KNN_model.pkl',
             'LinearRegression': 'LinearRegression_model.pkl',
-            'Ridge': 'Ridge_model.pkl'
+            'Ridge': 'Ridge_model.pkl',
+            'ANN': 'ANN_model.pkl'
         }
         
-        loaded_models = []
-        for model_name, file_name in model_files.items():
+        print(f"🔍 开始加载模型...")
+        
+        for model_name, file_name in selected_model_files.items():
+            print(f"正在尝试加载 {model_name}...")
             model_path = models_dir / file_name
             if model_path.exists():
                 try:
-                    # 抑制XGBoost的版本警告
+                    # 抑制所有警告
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        with open(model_path, 'rb') as f:
-                            model = pickle.load(f)
+                        
+                        # 尝试多种加载方式
+                        model = None
+                        
+                        # 方法1: 标准pickle加载
+                        try:
+                            with open(model_path, 'rb') as f:
+                                model = pickle.load(f)
+                            print(f"✅ {model_name} 使用标准pickle加载成功")
+                        except Exception as e1:
+                            print(f"⚠️ {model_name} 标准pickle加载失败: {e1}")
                             
-                            # 为树模型预设CPU环境，避免GPU问题
-                            if model_name in ['XGBoost', 'LightGBM']:
+                            # 方法2: 尝试joblib加载
+                            try:
+                                import joblib
+                                model = joblib.load(model_path)
+                                print(f"✅ {model_name} 使用joblib加载成功")
+                            except Exception as e2:
+                                print(f"⚠️ {model_name} joblib加载失败: {e2}")
+                                
+                                # 方法3: 尝试使用latin1编码
                                 try:
-                                    # 设置CPU环境变量
-                                    import os
-                                    os.environ['CUDA_VISIBLE_DEVICES'] = ''
-                                    
-                                    # 测试模型是否可用
-                                    test_data = pd.DataFrame({
-                                        'parent_child_score': [17],
-                                        'resilience_score': [7],
-                                        'anxiety_score': [4],
-                                        'phone_usage_score': [23]
-                                    }) if model_name == 'XGBoost' else pd.DataFrame({
-                                        '亲子量表总得分': [17],
-                                        '韧性量表总得分': [7],
-                                        '焦虑量表总得分': [4],
-                                        '手机使用时间总得分': [23]
-                                    })
-                                    
-                                    _ = model.predict(test_data)
-                                    print(f"✅ {model_name} 模型加载并验证成功")
-                                except:
-                                    print(f"✅ {model_name} 模型加载成功（运行时处理兼容性）")
+                                    with open(model_path, 'rb') as f:
+                                        model = pickle.load(f, encoding='latin1')
+                                    print(f"✅ {model_name} 使用latin1编码加载成功")
+                                except Exception as e3:
+                                    print(f"⚠️ {model_name} latin1编码加载失败: {e3}")
+                                    continue
+                        
+                        if model is None:
+                            continue
                             
-                            self.models[model_name] = model
-                            loaded_models.append(model_name)
-                            print(f"✅ 成功加载模型: {model_name}")
+                    # 测试模型是否可用，根据模型类型使用不同的特征名称
+                    try:
+                        # 设置CPU环境变量避免GPU问题
+                        import os
+                        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+                        
+                        # 根据模型类型选择特征名称
+                        if model_name in ['XGBoost']:
+                            # XGBoost使用英文特征名
+                            test_data = pd.DataFrame({
+                                'parent_child_score': [17],
+                                'resilience_score': [7],
+                                'anxiety_score': [4],
+                                'phone_usage_score': [23]
+                            })
+                        else:
+                            # 其他模型使用中文特征名
+                            test_data = pd.DataFrame({
+                                '亲子量表总得分': [17],
+                                '韧性量表总得分': [7],
+                                '焦虑量表总得分': [4],
+                                '手机使用时间总得分': [23]
+                            })
+                        
+                        _ = model.predict(test_data)
+                        print(f"✅ {model_name} 模型验证成功")
+                    except Exception as test_error:
+                        print(f"⚠️ {model_name} 模型验证失败: {test_error}")
+                        # 仍然添加到模型列表，在使用时处理兼容性
+                    
+                    self.models[model_name] = model
+                    loaded_models.append(model_name)
+                    print(f"✅ 成功加载模型: {model_name}")
+                    
                 except Exception as e:
                     print(f"❌ 无法加载模型 {model_name}: {e}")
                     continue
+            else:
+                print(f"⚠️ 模型文件不存在: {file_name}")
         
         # 更新可用模型列表为实际加载成功的模型
-        self.available_models = [model for model in self.available_models if model in loaded_models]
+        self.available_models = loaded_models
         print(f"📊 总共加载了 {len(self.available_models)} 个模型: {', '.join(self.available_models)}")
     
     def load_background_data(self):
@@ -376,10 +419,8 @@ class DepressionPredictionApp:
             # 基于模型类型设置不确定性系数
             if model_name in ['XGBoost', 'LightGBM']:
                 uncertainty_factor = 0.06  # 6%的不确定性，树模型相对准确
-            elif model_name in ['RandomForest', 'GradientBoosting']:
-                uncertainty_factor = 0.08  # 8%的不确定性
-            elif model_name in ['SVM', 'ANN']:
-                uncertainty_factor = 0.12  # 12%的不确定性
+            elif model_name in ['ANN']:
+                uncertainty_factor = 0.12  # 12%的不确定性，神经网络
             elif model_name in ['LinearRegression', 'Ridge']:
                 uncertainty_factor = 0.08  # 8%的不确定性，线性模型比较稳定
             elif model_name in ['KNN']:
@@ -736,24 +777,55 @@ class DepressionPredictionApp:
                         return None
             
             elif model_name in ['LightGBM']:
-                # LightGBM暂时跳过SHAP分析
-                print(f"⚠️ {model_name} 在云端环境中暂时跳过SHAP分析（兼容性问题）")
-                return None
+                # LightGBM使用TreeExplainer
+                try:
+                    print(f"使用TreeExplainer分析 {model_name}")
+                    background_sample = self.background_data_cn.sample(50, random_state=42)
+                    explainer = shap.TreeExplainer(model, background_sample)
+                    shap_values = explainer.shap_values(input_data)
+                    print(f"✅ {model_name} TreeExplainer分析成功")
+                    return shap_values, explainer
+                except Exception as tree_error:
+                    print(f"⚠️ {model_name} TreeExplainer失败: {tree_error}")
+                    # 回退到KernelExplainer
+                    try:
+                        print(f"回退到KernelExplainer分析 {model_name}")
+                        background_sample = self.background_data_cn.sample(30, random_state=42)
+                        explainer = shap.KernelExplainer(model.predict, background_sample)
+                        shap_values = explainer.shap_values(input_data)
+                        print(f"✅ {model_name} KernelExplainer分析成功")
+                        return shap_values, explainer
+                    except Exception as kernel_error:
+                        print(f"KernelExplainer也失败: {kernel_error}")
+                        return None
                 
             elif model_name in ['LinearRegression', 'Ridge']:
-                # 线性模型使用LinearExplainer和中文特征名称
-                print(f"使用LinearExplainer分析 {model_name}")
-                explainer = shap.LinearExplainer(model, self.background_data_cn.sample(50, random_state=42))
-                shap_values = explainer.shap_values(input_data)
-                print(f"{model_name} LinearExplainer分析完成")
+                # 线性模型使用LinearExplainer
+                try:
+                    print(f"使用LinearExplainer分析 {model_name}")
+                    explainer = shap.LinearExplainer(model, self.background_data_cn.sample(50, random_state=42))
+                    shap_values = explainer.shap_values(input_data)
+                    print(f"✅ {model_name} LinearExplainer分析成功")
+                    return shap_values, explainer
+                except Exception as linear_error:
+                    print(f"⚠️ {model_name} LinearExplainer失败: {linear_error}")
+                    return None
                 
-            elif model_name in ['KNN']:
-                # KNN模型先暂时跳过SHAP分析，因为KernelExplainer太慢
-                print(f"{model_name} 跳过SHAP分析（性能原因）")
-                return None
+            elif model_name in ['ANN', 'KNN']:
+                # 复杂模型使用KernelExplainer（但比较慢）
+                try:
+                    print(f"使用KernelExplainer分析 {model_name}（可能较慢）")
+                    background_sample = self.background_data_cn.sample(30, random_state=42)  # 更小样本提高速度
+                    explainer = shap.KernelExplainer(model.predict, background_sample)
+                    shap_values = explainer.shap_values(input_data)
+                    print(f"✅ {model_name} KernelExplainer分析成功")
+                    return shap_values, explainer
+                except Exception as kernel_error:
+                    print(f"⚠️ {model_name} KernelExplainer失败（性能原因）: {kernel_error}")
+                    return None
             else:
-                # 其他模型暂时跳过SHAP分析
-                print(f"{model_name} 暂不支持SHAP分析")
+                # 未知模型暂时跳过SHAP分析
+                print(f"⚠️ {model_name} 暂不支持SHAP分析")
                 return None
             
             print(f"{model_name} SHAP分析成功，返回结果")
@@ -820,8 +892,8 @@ class DepressionPredictionApp:
         if st.button("Predict", key="predict_btn"):
             if selected_model in self.models:
                 # 准备输入数据 - 根据模型类型使用不同的特征名称
-                if selected_model in ['XGBoost', 'LightGBM']:
-                    # 树模型使用英文特征名称
+                if selected_model in ['XGBoost']:
+                    # XGBoost使用英文特征名称
                     input_data = pd.DataFrame({
                         'parent_child_score': [parent_child],
                         'resilience_score': [resilience],
@@ -829,7 +901,7 @@ class DepressionPredictionApp:
                         'phone_usage_score': [phone_usage]
                     })
                 else:
-                    # 其他模型使用中文特征名称
+                    # 其他所有模型使用中文特征名称
                     input_data = pd.DataFrame({
                         '亲子量表总得分': [parent_child],
                         '韧性量表总得分': [resilience],
