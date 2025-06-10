@@ -650,7 +650,7 @@ class DepressionPredictionApp:
                                 # 如果深度修复失败，使用原模型
                                 model = self.models[selected_model]
                         
-                        # 安全预测函数 - 直接使用原模型，如果GPU错误就用安全模式
+                        # 安全预测函数 - 多层级错误处理
                         def safe_predict(model, data, model_name):
                             """安全预测函数，处理GPU兼容性问题"""
                             try:
@@ -658,14 +658,21 @@ class DepressionPredictionApp:
                                 return model.predict(data)[0]
                             except Exception as e:
                                 error_str = str(e).lower()
-                                if any(keyword in error_str for keyword in ['gpu', 'device', 'cuda']):
+                                # 检测各种GPU相关错误
+                                gpu_keywords = ['gpu', 'device', 'cuda', 'gpu_id', 'tree_method', 'predictor']
+                                is_gpu_error = any(keyword in error_str for keyword in gpu_keywords)
+                                # 特别检测XGBoost的属性错误
+                                is_xgb_attr_error = 'object has no attribute' in error_str and model_name in ['XGBoost', 'LightGBM']
+                                
+                                if is_gpu_error or is_xgb_attr_error:
                                     st.info(f"🔧 检测到GPU兼容性问题，正在切换到CPU模式...")
+                                    
+                                    # 策略1: 尝试温和修复
                                     try:
-                                        # 创建模型副本进行修复
                                         import copy
                                         model_copy = copy.deepcopy(model)
                                         
-                                        # 温和地设置CPU参数，不删除关键属性
+                                        # 温和地设置CPU参数
                                         if hasattr(model_copy, 'set_param'):
                                             try:
                                                 model_copy.set_param({'device': 'cpu'})
@@ -673,14 +680,41 @@ class DepressionPredictionApp:
                                             except:
                                                 pass
                                         
-                                        # 重试预测
                                         result = model_copy.predict(data)[0]
                                         st.success(f"✅ {model_name} 已成功切换到CPU模式")
                                         return result
                                         
-                                    except Exception as cpu_error:
-                                        # 如果CPU模式也失败，抛出原始错误
-                                        raise e
+                                    except Exception as cpu_error1:
+                                        # 策略2: 重新加载原始模型
+                                        try:
+                                            st.info("🔄 正在重新加载原始模型...")
+                                            models_dir = current_dir / 'models'
+                                            model_path = models_dir / f'{model_name}_model.pkl'
+                                            
+                                            with open(model_path, 'rb') as f:
+                                                fresh_model = pickle.load(f)
+                                            
+                                            # 直接尝试预测，不修改模型
+                                            result = fresh_model.predict(data)[0]
+                                            st.success(f"✅ {model_name} 原始模型预测成功")
+                                            return result
+                                            
+                                        except Exception as cpu_error2:
+                                            # 策略3: 尝试环境变量方式
+                                            try:
+                                                st.info("🛠️ 尝试环境变量修复...")
+                                                import os
+                                                os.environ['CUDA_VISIBLE_DEVICES'] = ''
+                                                
+                                                result = model.predict(data)[0]
+                                                st.success(f"✅ {model_name} 环境变量修复成功")
+                                                return result
+                                                
+                                            except Exception as final_error:
+                                                # 所有策略都失败，使用其他可用模型提示
+                                                st.error(f"⚠️ {model_name} 在当前云端环境中暂时不可用")
+                                                st.info("💡 建议使用 Ridge 或 LinearRegression 模型，它们在云端环境更稳定")
+                                                raise e
                                 else:
                                     # 非GPU相关错误，直接抛出
                                     raise e
