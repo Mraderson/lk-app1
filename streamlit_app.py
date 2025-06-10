@@ -409,23 +409,20 @@ class DepressionPredictionApp:
             except:
                 return None, None, None
     
-    def create_shap_force_plot(self, explainer, shap_values, input_data):
-        """创建SHAP force plot，参考用户提供的图片样式"""
+    def create_shap_waterfall_plot(self, explainer, shap_values, input_data):
+        """创建SHAP waterfall plot，类似医学论文的清晰样式"""
         try:
-            print(f"开始创建SHAP图表...")
+            print(f"开始创建SHAP waterfall图表...")
             
-            # 获取特征值和英文名称
+            # 获取特征值和中文名称
             feature_values = input_data.iloc[0].values
-            english_names = [self.feature_name_mapping[name] for name in self.feature_names]
+            feature_names = self.feature_names
             
             # 获取基准值和SHAP值
             expected_value = explainer.expected_value
-            print(f"Expected value: {expected_value}, type: {type(expected_value)}")
-            
             if hasattr(expected_value, '__len__') and len(expected_value) > 1:
                 expected_value = expected_value[0]
             
-            print(f"SHAP values shape: {shap_values.shape}")
             if len(shap_values.shape) > 1:
                 shap_vals = shap_values[0]
             else:
@@ -434,63 +431,89 @@ class DepressionPredictionApp:
             # 计算预测值
             prediction = expected_value + np.sum(shap_vals)
             
-            # 创建图形 - 增大尺寸以提高清晰度
-            fig, ax = plt.subplots(figsize=(14, 4))
-            ax.set_xlim(0, 1)
-            ax.set_ylim(-0.6, 0.6)
+            # 准备数据：按SHAP值绝对值排序
+            feature_data = list(zip(feature_names, feature_values, shap_vals))
+            feature_data.sort(key=lambda x: abs(x[2]), reverse=True)
             
-            # 隐藏坐标轴
-            ax.set_xticks([])
-            ax.set_yticks([])
+            # 创建图形
+            fig, ax = plt.subplots(figsize=(12, 8))
+            
+            # 设置颜色
+            colors = ['#e74c3c' if shap_val > 0 else '#3498db' for _, _, shap_val in feature_data]
+            
+            # 创建水平条形图
+            y_positions = range(len(feature_data))
+            shap_contributions = [shap_val for _, _, shap_val in feature_data]
+            
+            bars = ax.barh(y_positions, [abs(contrib) for contrib in shap_contributions], 
+                          color=colors, alpha=0.8, height=0.6)
+            
+            # 设置y轴标签（特征名称和数值）
+            labels = []
+            for name, value, shap_val in feature_data:
+                if name == '亲子量表总得分':
+                    label = f'{value:.0f} = 亲子量表得分'
+                elif name == '韧性量表总得分':
+                    label = f'{value:.0f} = 韧性量表得分'
+                elif name == '焦虑量表总得分':
+                    label = f'{value:.0f} = 焦虑量表得分'
+                elif name == '手机使用时间总得分':
+                    label = f'{value:.0f} = 手机使用时间得分'
+                else:
+                    label = f'{value:.1f} = {name}'
+                labels.append(label)
+            
+            ax.set_yticks(y_positions)
+            ax.set_yticklabels(labels, fontsize=12)
+            
+            # 在每个条形上添加SHAP值标注
+            for i, (bar, (_, _, shap_val)) in enumerate(zip(bars, feature_data)):
+                width = bar.get_width()
+                # 根据贡献正负决定标注位置和颜色
+                if shap_val > 0:
+                    ax.text(width + 0.005, bar.get_y() + bar.get_height()/2, 
+                           f'+{shap_val:.2f}', ha='left', va='center', 
+                           fontweight='bold', fontsize=11, color='#e74c3c')
+                else:
+                    ax.text(width + 0.005, bar.get_y() + bar.get_height()/2, 
+                           f'{shap_val:.2f}', ha='left', va='center', 
+                           fontweight='bold', fontsize=11, color='#3498db')
+            
+            # 设置x轴
+            max_abs_shap = max([abs(shap_val) for _, _, shap_val in feature_data])
+            ax.set_xlim(0, max_abs_shap * 1.3)
+            ax.set_xlabel('SHAP值贡献度', fontsize=14, fontweight='bold')
+            
+            # 添加基准线
+            ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
+            
+            # 设置标题和基本信息
+            ax.set_title(f'特征对抑郁预测的贡献分析\n基准值: {expected_value:.2f} → 预测值: {prediction:.2f}', 
+                        fontsize=16, fontweight='bold', pad=20)
+            
+            # 添加图例
+            from matplotlib.patches import Patch
+            legend_elements = [
+                Patch(facecolor='#e74c3c', alpha=0.8, label='增加抑郁风险'),
+                Patch(facecolor='#3498db', alpha=0.8, label='降低抑郁风险')
+            ]
+            ax.legend(handles=legend_elements, loc='lower right', fontsize=12)
+            
+            # 美化图表
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
-            ax.spines['bottom'].set_visible(False)
-            ax.spines['left'].set_visible(False)
+            ax.spines['left'].set_linewidth(0.5)
+            ax.spines['bottom'].set_linewidth(0.5)
+            ax.grid(axis='x', alpha=0.3)
             
-            # 绘制基准线（灰色背景）
-            ax.axhline(y=0, color='lightgray', linewidth=25, alpha=0.3)
-            
-            # 计算累积位置
-            current_pos = 0
-            total_width = 1.0
-            feature_widths = np.abs(shap_vals) / np.sum(np.abs(shap_vals)) * 0.8  # 留20%空白
-            
-            # 绘制每个特征的贡献
-            start_x = 0.1  # 左边留10%空白
-            for i, (name, value, shap_val, width) in enumerate(zip(english_names, feature_values, shap_vals, feature_widths)):
-                # 根据SHAP值确定颜色
-                if shap_val > 0:
-                    color = '#ff4757'  # 红色 - 增加风险
-                else:
-                    color = '#5352ed'  # 蓝色 - 降低风险
-                
-                # 绘制特征条
-                rect = plt.Rectangle((start_x, -0.2), width, 0.4, 
-                                   facecolor=color, alpha=0.8, edgecolor='white', linewidth=2)
-                ax.add_patch(rect)
-                
-                # 添加特征标签和值 - 增大字体
-                if width > 0.05:  # 只有足够宽的条才显示标签
-                    ax.text(start_x + width/2, 0, f'{name}\n= {value:.1f}', 
-                           ha='center', va='center', fontsize=12, color='white', weight='bold')
-                
-                start_x += width
-            
-            # 添加基准值标签 - 增大字体
-            ax.text(0.05, -0.45, f'基准值 = {expected_value:.1f}', fontsize=14, ha='left', weight='bold')
-            
-            # 添加预测结果 - 增大字体
-            ax.text(0.95, -0.45, f'预测值 = {prediction:.2f}', fontsize=14, ha='right', weight='bold')
-            
-            # 添加说明 - 增大字体
-            ax.text(0.5, 0.45, 'Based on feature values, predicted possibility of Depression is {:.2f}%'.format(prediction*100/27), 
-                   ha='center', va='center', fontsize=16, style='italic', weight='bold')
-            
+            # 调整布局
             plt.tight_layout()
+            
             return fig
             
         except Exception as e:
-            st.error(f"创建SHAP图表失败: {e}")
+            st.error(f"创建SHAP waterfall图表失败: {e}")
+            print(f"SHAP图表错误详情: {e}")
             return None
     
     def run_shap_analysis(self, model, model_name, input_data):
@@ -841,8 +864,8 @@ class DepressionPredictionApp:
                                 if shap_result:
                                     shap_values, explainer = shap_result
                                     
-                                    # 创建SHAP force plot
-                                    fig = self.create_shap_force_plot(explainer, shap_values, input_data)
+                                    # 创建SHAP waterfall plot
+                                    fig = self.create_shap_waterfall_plot(explainer, shap_values, input_data)
                                     if fig:
                                         st.pyplot(fig)
                                         plt.close(fig)  # 释放内存
