@@ -445,29 +445,25 @@ class DepressionPredictionApp:
                 # 尝试使用SHAP的force plot
                 print("尝试使用原生SHAP force plot...")
                 
-                # 创建图形
-                fig, ax = plt.subplots(figsize=(16, 6))
+                # 创建图形 - 更大尺寸
+                fig, ax = plt.subplots(figsize=(20, 8))
                 fig.patch.set_facecolor('white')
+                
+                # 设置高DPI和字体
+                plt.rcParams['figure.dpi'] = 150
+                plt.rcParams['savefig.dpi'] = 200
                 
                 # 使用shap的内部函数来绘制force plot
                 try:
-                    # 新版本SHAP
-                    shap.plots.force(expected_value, shap_vals, input_data.iloc[0], 
-                                   matplotlib=True, show=False)
-                    print("✅ 新版SHAP force plot成功")
-                    plt.tight_layout()
-                    return plt.gcf()
+                    # 新版本SHAP - 直接跳过，因为有字体问题
+                    raise Exception("跳过原生SHAP，使用自定义实现避免字体问题")
                 except:
                     try:
-                        # 旧版本SHAP
-                        shap.force_plot(expected_value, shap_vals, input_data.iloc[0], 
-                                      matplotlib=True, show=False)
-                        print("✅ 旧版SHAP force plot成功")
-                        plt.tight_layout()
-                        return plt.gcf()
+                        # 旧版本SHAP - 也跳过
+                        raise Exception("跳过原生SHAP，使用自定义实现避免字体问题")
                     except:
                         # SHAP原生方法失败，使用自定义实现
-                        print("原生SHAP失败，使用自定义force plot...")
+                        print("使用自定义force plot避免字体问题...")
                         plt.close(fig)
                         raise Exception("原生SHAP不可用")
                         
@@ -477,13 +473,27 @@ class DepressionPredictionApp:
                 # 使用自定义的force plot实现
                 print("使用自定义force plot实现...")
                 
-                # 获取特征信息
+                # 获取特征信息 - 使用英文标签避免乱码
                 feature_values = input_data.iloc[0].values
-                feature_names = input_data.columns.tolist()
+                # 映射到英文标签
+                feature_name_mapping = {
+                    '亲子量表总得分': 'Parent-Child Scale',
+                    '韧性量表总得分': 'Resilience Scale', 
+                    '焦虑量表总得分': 'Anxiety Scale',
+                    '手机使用时间总得分': 'Phone Usage Scale'
+                }
+                feature_names = [feature_name_mapping.get(name, name) for name in input_data.columns.tolist()]
                 
-                # 创建图形
-                fig, ax = plt.subplots(figsize=(16, 6))
+                # 创建更大的图形
+                fig, ax = plt.subplots(figsize=(20, 8))
                 fig.patch.set_facecolor('white')
+                
+                # 设置更高的DPI和字体大小
+                plt.rcParams['figure.dpi'] = 150
+                plt.rcParams['savefig.dpi'] = 200
+                plt.rcParams['font.size'] = 14
+                plt.rcParams['axes.labelsize'] = 16
+                plt.rcParams['axes.titlesize'] = 18
                 
                 # 计算累积效应
                 base_value = expected_value
@@ -497,9 +507,9 @@ class DepressionPredictionApp:
                 # 绘制基线
                 ax.axhline(y=0, color='black', linestyle='-', alpha=0.3, linewidth=1)
                 
-                # 绘制force plot的箭头和条形
+                # 绘制force plot的箭头和条形 - 增大尺寸
                 y_pos = 0
-                bar_height = 0.6
+                bar_height = 1.0  # 增大条形高度
                 
                 # 颜色设置
                 positive_color = '#ff6b6b'  # 红色 - 增加风险
@@ -513,45 +523,47 @@ class DepressionPredictionApp:
                     # 确定颜色
                     color = positive_color if shap_val > 0 else negative_color
                     
-                    # 绘制水平条形
+                    # 绘制水平条形 - 更厚的边框
                     if shap_val > 0:
                         rect = patches.Rectangle((start_x, y_pos - bar_height/2), 
                                                abs(shap_val), bar_height,
-                                               facecolor=color, alpha=0.7, 
-                                               edgecolor='white', linewidth=1)
+                                               facecolor=color, alpha=0.8, 
+                                               edgecolor='white', linewidth=2)
                     else:
                         rect = patches.Rectangle((end_x, y_pos - bar_height/2), 
                                                abs(shap_val), bar_height,
-                                               facecolor=color, alpha=0.7, 
-                                               edgecolor='white', linewidth=1)
+                                               facecolor=color, alpha=0.8, 
+                                               edgecolor='white', linewidth=2)
                     ax.add_patch(rect)
                     
-                    # 添加特征标签
+                    # 添加特征标签 - 更大字体
                     mid_x = (start_x + end_x) / 2
-                    ax.text(mid_x, y_pos + bar_height/2 + 0.15, 
+                    ax.text(mid_x, y_pos + bar_height/2 + 0.25, 
                            f'{shap_val:+.2f}', ha='center', va='bottom', 
-                           fontsize=10, fontweight='bold', color=color)
+                           fontsize=14, fontweight='bold', color=color)
                     
-                    ax.text(mid_x, y_pos - bar_height/2 - 0.15, 
+                    ax.text(mid_x, y_pos - bar_height/2 - 0.25, 
                            f'{name}\n{value:.1f}', ha='center', va='top', 
-                           fontsize=9, rotation=0)
+                           fontsize=12, rotation=0, fontweight='bold')
                 
-                # 标记基准值和预测值
-                ax.axvline(x=base_value, color='gray', linestyle='--', alpha=0.8, linewidth=2)
-                ax.text(base_value, y_pos + 1, f'Base\n{base_value:.2f}', 
-                       ha='center', va='bottom', fontsize=11, fontweight='bold')
+                # 标记基准值和预测值 - 更大字体和更粗线条
+                ax.axvline(x=base_value, color='gray', linestyle='--', alpha=0.8, linewidth=3)
+                ax.text(base_value, y_pos + 1.2, f'Base Value\n{base_value:.2f}', 
+                       ha='center', va='bottom', fontsize=14, fontweight='bold', 
+                       bbox=dict(boxstyle='round,pad=0.3', facecolor='lightgray', alpha=0.7))
                 
                 final_pred = cumulative_values[-1]
-                ax.axvline(x=final_pred, color='black', linestyle='-', linewidth=3)
-                ax.text(final_pred, y_pos + 1, f'Prediction\n{final_pred:.2f}', 
-                       ha='center', va='bottom', fontsize=11, fontweight='bold')
+                ax.axvline(x=final_pred, color='black', linestyle='-', linewidth=4)
+                ax.text(final_pred, y_pos + 1.2, f'Final Prediction\n{final_pred:.2f}', 
+                       ha='center', va='bottom', fontsize=14, fontweight='bold',
+                       bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7))
                 
-                # 设置图表样式
+                # 设置图表样式 - 更大的范围
                 all_values = cumulative_values + [base_value]
                 x_min, x_max = min(all_values), max(all_values)
-                margin = (x_max - x_min) * 0.1
+                margin = (x_max - x_min) * 0.15
                 ax.set_xlim(x_min - margin, x_max + margin)
-                ax.set_ylim(-1.5, 1.5)
+                ax.set_ylim(-2.0, 2.5)
                 
                 # 隐藏y轴
                 ax.set_yticks([])
@@ -559,16 +571,17 @@ class DepressionPredictionApp:
                 ax.spines['right'].set_visible(False)
                 ax.spines['top'].set_visible(False)
                 
-                # 设置标题和图例
+                # 设置标题和图例 - 更大字体
                 ax.set_title('SHAP Force Plot - Feature Contributions to Depression Prediction', 
-                           fontsize=16, fontweight='bold', pad=20)
+                           fontsize=20, fontweight='bold', pad=30)
                 
-                # 添加图例
+                # 添加图例 - 更大更清晰
                 legend_elements = [
-                    patches.Patch(color=positive_color, alpha=0.7, label='Increases Risk'),
-                    patches.Patch(color=negative_color, alpha=0.7, label='Decreases Risk')
+                    patches.Patch(color=positive_color, alpha=0.8, label='Increases Depression Risk'),
+                    patches.Patch(color=negative_color, alpha=0.8, label='Decreases Depression Risk')
                 ]
-                ax.legend(handles=legend_elements, loc='upper right', fontsize=12)
+                ax.legend(handles=legend_elements, loc='upper right', fontsize=14, 
+                         framealpha=0.9, fancybox=True, shadow=True)
                 
                 plt.tight_layout()
                 print("✅ 自定义force plot创建成功")
