@@ -484,9 +484,31 @@ class DepressionPredictionApp:
         try:
             print(f"正在分析模型: {model_name}")  # 调试信息
             
-            # 针对XGBoost和LightGBM的兼容性问题，暂时只支持线性模型的SHAP分析
-            if model_name in ['XGBoost', 'LightGBM']:
-                # 由于numpy兼容性问题，暂时跳过树模型的SHAP分析
+            # 针对不同模型使用不同的SHAP解释器
+            if model_name == 'XGBoost':
+                try:
+                    print(f"使用TreeExplainer分析 {model_name}")
+                    # 使用较小的背景数据集以提高速度
+                    background_sample = self.background_data_cn.sample(100, random_state=42)
+                    explainer = shap.TreeExplainer(model, background_sample)
+                    shap_values = explainer.shap_values(input_data)
+                    print(f"✅ {model_name} SHAP分析成功")
+                    return shap_values, explainer
+                except Exception as tree_error:
+                    print(f"TreeExplainer失败: {tree_error}")
+                    try:
+                        print(f"回退到KernelExplainer分析 {model_name}")
+                        background_sample = self.background_data_cn.sample(50, random_state=42)
+                        explainer = shap.KernelExplainer(model.predict, background_sample)
+                        shap_values = explainer.shap_values(input_data)
+                        print(f"✅ {model_name} KernelExplainer分析成功")
+                        return shap_values, explainer
+                    except Exception as kernel_error:
+                        print(f"KernelExplainer也失败: {kernel_error}")
+                        return None
+            
+            elif model_name in ['LightGBM']:
+                # LightGBM暂时跳过SHAP分析
                 print(f"⚠️ {model_name} 在云端环境中暂时跳过SHAP分析（兼容性问题）")
                 return None
                 
@@ -651,10 +673,34 @@ class DepressionPredictionApp:
                         try:
                             prediction = model.predict(input_data)[0]
                         except Exception as pred_error:
-                            if 'gpu_id' in str(pred_error):
-                                st.error(f"⚠️ {selected_model} 模型存在GPU兼容性问题，建议使用其他模型")
-                                st.info("💡 推荐使用 LinearRegression 或 Ridge 模型，它们更稳定")
-                                return
+                            if 'gpu_id' in str(pred_error) or 'device' in str(pred_error):
+                                # 尝试最后的修复
+                                try:
+                                    st.info("🔧 正在尝试最终修复...")
+                                    import copy
+                                    model_final_fix = copy.deepcopy(model)
+                                    
+                                    # 超级强力修复
+                                    for attr in ['gpu_id', 'device', 'tree_method', '_Booster']:
+                                        if hasattr(model_final_fix, attr):
+                                            try:
+                                                delattr(model_final_fix, attr)
+                                            except:
+                                                pass
+                                    
+                                    # 强制设置CPU模式
+                                    if hasattr(model_final_fix, 'set_param'):
+                                        model_final_fix.set_param({'device': 'cpu'})
+                                    
+                                    # 重试预测
+                                    prediction = model_final_fix.predict(input_data)[0]
+                                    self.models[selected_model] = model_final_fix  # 保存修复后的模型
+                                    st.success(f"✅ {selected_model} 模型修复成功！")
+                                    
+                                except Exception as final_error:
+                                    st.error(f"⚠️ {selected_model} 模型存在GPU兼容性问题，建议使用其他模型")
+                                    st.info("💡 推荐使用 LinearRegression 或 Ridge 模型，它们更稳定")
+                                    return
                             else:
                                 raise pred_error
                     
