@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 # 配置页面
 st.set_page_config(
-    page_title="抑郁量表得分预测",
+    page_title="Depression Scale Score Prediction",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -83,17 +83,17 @@ class DepressionPredictionApp:
     def __init__(self):
         """初始化应用"""
         self.models = {}
-        self.feature_names = ['亲子量表总得分', '韧性量表总得分', '焦虑量表总得分', '手机使用时间总得分']
+        self.feature_names = ['parent_child_score', 'resilience_score', 'anxiety_score', 'phone_usage_score']
         
         # 云端安全：加载稳定的模型，包括修复后的XGBoost
         self.available_models = ['LinearRegression', 'Ridge', 'KNN', 'XGBoost']
         
         # 特征名称映射（用于SHAP显示）
         self.feature_name_mapping = {
-            '亲子量表总得分': 'Parent Child',
-            '韧性量表总得分': 'Resilience',
-            '焦虑量表总得分': 'Anxiety',
-            '手机使用时间总得分': 'Phone Usage Time'
+            'parent_child_score': 'Parent Child',
+            'resilience_score': 'Resilience',
+            'anxiety_score': 'Anxiety',
+            'phone_usage_score': 'Phone Usage Time'
         }
         
         self.load_models()

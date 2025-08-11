@@ -65,11 +65,11 @@ def preprocess_data(df, depression_threshold=10):
         print(f"After removing missing values: {df.shape[0]} rows")
     
     # 将抑郁得分二分类化（用于计算AUC等指标）
-    df['Depression_Binary'] = (df['抑郁量表总得分'] >= depression_threshold).astype(int)
+    df['Depression_Binary'] = (df['depression_score'] >= depression_threshold).astype(int)
     
     # 特征和目标变量
-    X = df[['亲子量表总得分', '韧性量表总得分', '焦虑量表总得分', '手机使用时间总得分']]
-    y_reg = df['抑郁量表总得分']  # 回归目标
+    X = df[['parent_child_score', 'resilience_score', 'anxiety_score', 'phone_usage_score']]
+    y_reg = df['depression_score']  # 回归目标
     y_cls = df['Depression_Binary']  # 分类目标（用于计算AUC等指标）
     
     return X, y_reg, y_cls
@@ -151,15 +151,15 @@ def normalize_predictions(y_pred):
 def correlation_analysis(df, save_path='figures/correlation_heatmap.png'):
     """相关性分析"""
     # 计算特征与目标变量的相关系数
-    corr = df[['亲子量表总得分', '韧性量表总得分', '焦虑量表总得分', '手机使用时间总得分', '抑郁量表总得分']].corr()
+    corr = df[['parent_child_score', 'resilience_score', 'anxiety_score', 'phone_usage_score', 'depression_score']].corr()
     
     # 英文列名映射
     column_rename = {
-        '亲子量表总得分': 'Parent-Child Relationship',
-        '韧性量表总得分': 'Resilience',
-        '焦虑量表总得分': 'Anxiety',
-        '手机使用时间总得分': 'Phone Usage Time',
-        '抑郁量表总得分': 'Depression'
+        'parent_child_score': 'Parent-Child Relationship',
+        'resilience_score': 'Resilience',
+        'anxiety_score': 'Anxiety',
+        'phone_usage_score': 'Phone Usage Time',
+        'depression_score': 'Depression'
     }
     
     # 重命名相关矩阵的行列名
@@ -174,7 +174,7 @@ def correlation_analysis(df, save_path='figures/correlation_heatmap.png'):
     
     # 打印与抑郁得分的相关系数
     print("\nCorrelation with Depression Score:")
-    depression_corr = corr['抑郁量表总得分'].sort_values(ascending=False)
+    depression_corr = corr['depression_score'].sort_values(ascending=False)
     depression_corr.index = [column_rename.get(col, col) for col in depression_corr.index]
     print(depression_corr)
     

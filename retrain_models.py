@@ -38,15 +38,15 @@ def load_data():
     df = pd.read_csv(data_path)
     
     # 特征和目标变量
-    feature_names = ['亲子量表总得分', '韧性量表总得分', '焦虑量表总得分', '手机使用时间总得分']
+    feature_names = ['parent_child_score', 'resilience_score', 'anxiety_score', 'phone_usage_score']
     X = df[feature_names]
-    y = df['抑郁量表总得分']
+    y = df['depression_score']
     
     return X, y
 
 def train_all_models():
     """训练所有模型"""
-    print("🔄 开始重新训练所有模型...")
+    print("🔄 Starting to retrain all models...")
     
     # 加载数据
     X, y = load_data()
@@ -84,7 +84,7 @@ def train_all_models():
     
     for name, model in models.items():
         try:
-            print(f"训练 {name}...")
+            print(f"Training {name}...")
             
             # 训练模型
             model.fit(X_train, y_train)
@@ -108,12 +108,12 @@ def train_all_models():
             print(f"✅ {name}: MSE={mse:.4f}, R²={r2:.4f}")
             
         except Exception as e:
-            print(f"❌ {name} 训练失败: {e}")
+            print(f"❌ {name} training failed: {e}")
     
-    print(f"\n🎉 训练完成! 成功训练了 {len(trained_models)} 个模型")
+    print(f"\n🎉 Training completed! Successfully trained {len(trained_models)} models")
     
     # 显示模型性能排序
-    print("\n📊 模型性能排序 (按R²降序):")
+    print("\n📊 Model performance ranking (by R² descending):")
     sorted_models = sorted(trained_models.items(), key=lambda x: x[1]['r2'], reverse=True)
     for i, (name, metrics) in enumerate(sorted_models, 1):
         print(f"{i:2d}. {name:15s}: R²={metrics['r2']:.4f}, MSE={metrics['mse']:.4f}")
