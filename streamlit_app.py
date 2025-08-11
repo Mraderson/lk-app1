@@ -249,12 +249,12 @@ class DepressionPredictionApp:
         ]
         
         # 特征名称映射
-        self.feature_names = ['parent_child_score', 'resilience_score', 'anxiety_score', 'phone_usage_score']
+        self.feature_names = ['亲子量表总得分', '韧性量表总得分', '焦虑量表总得分', '手机使用时间总得分']
         self.feature_name_mapping = {
-            'parent_child_score': 'Parent-Child Scale',
-            'resilience_score': 'Resilience Scale', 
-            'anxiety_score': 'Anxiety Scale',
-            'phone_usage_score': 'Phone Usage Time'
+            '亲子量表总得分': 'Parent-Child Scale',
+            '韧性量表总得分': 'Resilience Scale', 
+            '焦虑量表总得分': 'Anxiety Scale',
+            '手机使用时间总得分': 'Phone Usage Time'
         }
         
         self.load_models()
@@ -275,10 +275,10 @@ class DepressionPredictionApp:
             'ANN': 'ANN_model.pkl'
         }
         
-        print(f"🔍 开始加载模型...")
+        print(f"🔍 Starting to load models...")
         
         for model_name, file_name in selected_model_files.items():
-            print(f"正在尝试加载 {model_name}...")
+            print(f"Attempting to load {model_name}...")
             model_path = models_dir / file_name
             if model_path.exists():
                 try:
@@ -293,25 +293,25 @@ class DepressionPredictionApp:
                         try:
                             with open(model_path, 'rb') as f:
                                 model = pickle.load(f)
-                            print(f"✅ {model_name} 使用标准pickle加载成功")
+                            print(f"✅ {model_name} loaded successfully using standard pickle")
                         except Exception as e1:
-                            print(f"⚠️ {model_name} 标准pickle加载失败: {e1}")
+                            print(f"⚠️ {model_name} standard pickle loading failed: {e1}")
                             
                             # 方法2: 尝试joblib加载
                             try:
                                 import joblib
                                 model = joblib.load(model_path)
-                                print(f"✅ {model_name} 使用joblib加载成功")
+                                print(f"✅ {model_name} loaded successfully using joblib")
                             except Exception as e2:
-                                print(f"⚠️ {model_name} joblib加载失败: {e2}")
+                                print(f"⚠️ {model_name} joblib loading failed: {e2}")
                                 
                                 # 方法3: 尝试使用latin1编码
                                 try:
                                     with open(model_path, 'rb') as f:
                                         model = pickle.load(f, encoding='latin1')
-                                    print(f"✅ {model_name} 使用latin1编码加载成功")
+                                    print(f"✅ {model_name} loaded successfully using latin1 encoding")
                                 except Exception as e3:
-                                    print(f"⚠️ {model_name} latin1编码加载失败: {e3}")
+                                    print(f"⚠️ {model_name} latin1 encoding loading failed: {e3}")
                                     continue
                         
                         if model is None:
@@ -342,10 +342,10 @@ class DepressionPredictionApp:
                             })
                         
                         _ = model.predict(test_data)
-                        print(f"✅ {model_name} 模型验证成功")
+                        print(f"✅ {model_name} model validation successful")
                     except Exception as test_error:
-                        print(f"⚠️ {model_name} 模型验证失败: {test_error}")
-                        # 仍然添加到模型列表，在使用时处理兼容性
+                        print(f"⚠️ {model_name} model validation failed: {test_error}")
+                        # Still add to model list, handle compatibility when using
                     
                     self.models[model_name] = model
                     loaded_models.append(model_name)
@@ -357,9 +357,9 @@ class DepressionPredictionApp:
             else:
                 print(f"⚠️ 模型文件不存在: {file_name}")
         
-        # 更新可用模型列表为实际加载成功的模型
+        # Update available model list to actually loaded models
         self.available_models = loaded_models
-        print(f"📊 总共加载了 {len(self.available_models)} 个模型: {', '.join(self.available_models)}")
+        print(f"📊 Total loaded {len(self.available_models)} models: {', '.join(self.available_models)}")
     
     def load_background_data(self):
         """Load background data for SHAP analysis and confidence interval calculation"""
@@ -439,11 +439,11 @@ class DepressionPredictionApp:
             return base_prediction, lower_ci, upper_ci
                 
         except Exception as e:
-            print(f"置信区间计算错误: {e}")
-            # 返回基础预测和简单估计的置信区间
+            print(f"Confidence interval calculation error: {e}")
+            # Return basic prediction and simple estimated confidence interval
             try:
                 base_prediction = model.predict(input_data)[0]
-                simple_margin = base_prediction * 0.1  # 简单的10%边际
+                simple_margin = base_prediction * 0.1  # Simple 10% margin
                 lower_ci = max(0, base_prediction - simple_margin)
                 upper_ci = min(27, base_prediction + simple_margin)
                 return base_prediction, lower_ci, upper_ci
@@ -451,26 +451,26 @@ class DepressionPredictionApp:
                 return None, None, None
     
     def create_shap_waterfall_plot(self, explainer, shap_values, input_data):
-        """创建SHAP waterfall plot，更清晰的可解释性可视化"""
+        """Create SHAP waterfall plot for clearer interpretability visualization"""
         try:
             import matplotlib.pyplot as plt
             import matplotlib.patches as patches
-            print(f"开始创建SHAP waterfall plot...")
+            print(f"Starting to create SHAP waterfall plot...")
             
-            # 强制清除matplotlib缓存和重新配置
+            # Force clear matplotlib cache and reconfigure
             plt.style.use('default')
             plt.rcParams.clear()
             plt.rcParams.update(plt.rcParamsDefault)
             plt.switch_backend('Agg')
             
-            # 设置高质量图表参数
+            # Set high-quality chart parameters
             plt.rcParams['figure.facecolor'] = 'white'
             plt.rcParams['axes.facecolor'] = 'white'
             plt.rcParams['figure.dpi'] = 150
             plt.rcParams['savefig.dpi'] = 200
             plt.rcParams['font.size'] = 12
             
-            # 获取基准值和SHAP值
+            # Get baseline values and SHAP values
             expected_value = explainer.expected_value
             if hasattr(expected_value, '__len__') and len(expected_value) > 1:
                 expected_value = expected_value[0]
@@ -483,13 +483,13 @@ class DepressionPredictionApp:
             # 使用原生SHAP waterfall plot
             try:
                 import shap
-                print("使用原生SHAP waterfall plot...")
+                print("Using native SHAP waterfall plot...")
                 
-                # 创建更大的图形
+                # Create larger figure
                 fig = plt.figure(figsize=(16, 10))
                 fig.patch.set_facecolor('white')
                 
-                # 使用英文特征名称避免乱码
+                # Use English feature names to avoid encoding issues
                 feature_name_mapping = {
                     '亲子量表总得分': 'Parent-Child Scale',
                     '韧性量表总得分': 'Resilience Scale', 
@@ -501,10 +501,10 @@ class DepressionPredictionApp:
                     'phone_usage_score': 'Phone Usage Scale'
                 }
                 
-                # 转换特征名称为英文
+                # Convert feature names to English
                 english_feature_names = [feature_name_mapping.get(name, name) for name in input_data.columns.tolist()]
                 
-                # 使用SHAP的waterfall plot
+                # Use SHAP waterfall plot
                 shap.plots.waterfall(shap.Explanation(
                     values=shap_vals,
                     base_values=expected_value,
@@ -513,19 +513,19 @@ class DepressionPredictionApp:
                 ), show=False)
                 
                 plt.tight_layout()
-                print("✅ 原生SHAP waterfall plot创建成功")
+                print("✅ Native SHAP waterfall plot created successfully")
                 return fig
                 
             except Exception as waterfall_error:
-                print(f"原生waterfall plot失败: {waterfall_error}")
+                print(f"Native waterfall plot failed: {waterfall_error}")
                 
-                # 备用：使用简化的waterfall实现
-                print("使用备用waterfall实现...")
+                # Backup: Use simplified waterfall implementation
+                print("Using backup waterfall implementation...")
                 
                 fig, ax = plt.subplots(figsize=(12, 8))
                 fig.patch.set_facecolor('white')
                 
-                # 获取特征信息 - 统一使用英文避免乱码
+                # Get feature information - uniformly use English to avoid encoding issues
                 feature_values = input_data.iloc[0].values
                 feature_name_mapping = {
                     '亲子量表总得分': 'Parent-Child Scale',
@@ -587,7 +587,7 @@ class DepressionPredictionApp:
                 ax.set_axisbelow(True)
                 
                 plt.tight_layout()
-                print("✅ 备用waterfall plot创建成功")
+                print("✅ Backup waterfall plot created successfully")
                 return fig
             
         except Exception as e:
@@ -598,13 +598,13 @@ class DepressionPredictionApp:
             return None
     
     def generate_simple_explanation(self, explainer, shap_values, input_data, model_name, prediction):
-        """为每次测试结果提供简洁美观的解释"""
+        """Provide concise and beautiful explanation for each test result"""
         try:
-            # 获取特征值和名称
+            # Get feature values and names
             feature_values = input_data.iloc[0].values
-            feature_names = ['Parent-Child Scale Score', 'Resilience Scale Score', 'Anxiety Scale Score', 'Phone Usage Time Score']
+            feature_names = ['亲子量表总得分', '韧性量表总得分', '焦虑量表总得分', '手机使用时间总得分']
             
-            # 获取基准值和SHAP值
+            # Get baseline values and SHAP values
             expected_value = explainer.expected_value
             if hasattr(expected_value, '__len__') and len(expected_value) > 1:
                 expected_value = expected_value[0]
@@ -614,7 +614,7 @@ class DepressionPredictionApp:
             else:
                 shap_vals = shap_values
             
-            # 风险等级判断
+            # Risk level assessment
             if prediction > 14:
                 risk_level = "High Risk"
                 risk_color = "#e74c3c"
@@ -628,20 +628,22 @@ class DepressionPredictionApp:
                 risk_color = "#27ae60"
                 risk_emoji = "🟢"
             
-            # 找出最重要的影响因素
+            # Find the most important influencing factors
             feature_data = list(zip(feature_names, feature_values, shap_vals))
             sorted_features = sorted(feature_data, key=lambda x: abs(x[2]), reverse=True)
             
-            # 主要影响因素分析
+            # Main influencing factor analysis
             main_factor = sorted_features[0]
+            # Convert Chinese feature names to English display
+            feature_name_en = self.feature_name_mapping.get(main_factor[0], main_factor[0])
             if main_factor[2] > 0:
-                main_effect = f"{main_factor[0]}({main_factor[1]:.0f} points) had a positive impact on prediction results (+{main_factor[2]:.2f})"
+                main_effect = f"{feature_name_en}({main_factor[1]:.0f} points) had a positive impact on prediction results (+{main_factor[2]:.2f})"
                 effect_desc = "increased depression tendency"
             else:
-                main_effect = f"{main_factor[0]}({main_factor[1]:.0f} points) had a negative impact on prediction results ({main_factor[2]:.2f})"
+                main_effect = f"{feature_name_en}({main_factor[1]:.0f} points) had a negative impact on prediction results ({main_factor[2]:.2f})"
                 effect_desc = "decreased depression tendency"
             
-            # 生成简洁解释
+            # Generate concise explanation
             explanation = f"""
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                         padding: 25px; border-radius: 15px; margin: 20px 0; 
@@ -676,7 +678,7 @@ class DepressionPredictionApp:
     
     def _get_feature_analysis(self, feature_name, value, shap_val, direction):
         """Generate specific analysis based on feature name, value and SHAP value"""
-        if feature_name == 'Parent-Child Scale Score':
+        if feature_name == '亲子量表总得分':
             if direction == 'positive':
                 if value >= 25:
                     return "Parent-child relationship has significant issues, may increase depression risk"
@@ -685,7 +687,7 @@ class DepressionPredictionApp:
             else:
                 return "Good parent-child relationship is an important protective factor, helps maintain mental health"
                 
-        elif feature_name == 'Resilience Scale Score':
+        elif feature_name == '韧性量表总得分':
             if direction == 'positive':
                 return "Psychological resilience is relatively low, limited ability to adapt to stress"
             else:
@@ -694,7 +696,7 @@ class DepressionPredictionApp:
                 else:
                     return "Moderate psychological resilience has protective effects on mental health"
                     
-        elif feature_name == 'Anxiety Scale Score':
+        elif feature_name == '焦虑量表总得分':
             if direction == 'positive':
                 if value >= 15:
                     return "High anxiety levels, closely related to depressive symptoms, requires focused attention"
@@ -703,7 +705,7 @@ class DepressionPredictionApp:
             else:
                 return "Anxiety levels are relatively low, helps maintain psychological balance"
                 
-        elif feature_name == 'Phone Usage Time Score':
+        elif feature_name == '手机使用时间总得分':
             if direction == 'positive':
                 if value >= 15:
                     return "Excessive phone use may affect social interaction and sleep, increasing depression risk"
@@ -720,16 +722,16 @@ class DepressionPredictionApp:
         
         # Give recommendations based on each feature score
         for name, value, shap_val in feature_data:
-            if name == 'Parent-Child Scale Score' and (shap_val > 0 or value > 20):
+            if name == '亲子量表总得分' and (shap_val > 0 or value > 20):
                 recommendations.append("🏠 **Improve Parent-Child Relationship**: Try to increase communication time with family, express care and understanding")
             
-            if name == 'Resilience Scale Score' and shap_val > 0:
+            if name == '韧性量表总得分' and shap_val > 0:
                 recommendations.append("💪 **Enhance Psychological Resilience**: Learn stress management techniques, cultivate positive coping methods")
             
-            if name == 'Anxiety Scale Score' and (shap_val > 0 or value > 10):
+            if name == '焦虑量表总得分' and (shap_val > 0 or value > 10):
                 recommendations.append("🧘 **Relieve Anxiety**: Try deep breathing, meditation or moderate exercise to relieve anxiety")
             
-            if name == 'Phone Usage Time Score' and (shap_val > 0 or value > 12):
+            if name == '手机使用时间总得分' and (shap_val > 0 or value > 12):
                 recommendations.append("📱 **Reasonable Phone Use**: Set usage time limits, increase offline activities and face-to-face social interaction")
         
         # Add general recommendations based on risk level
@@ -837,19 +839,19 @@ class DepressionPredictionApp:
             return None
     
     def run(self):
-        """运行应用主程序"""
+        """Run the main application program"""
         # 强制清除Streamlit缓存以确保新图表生效
         if hasattr(st, 'cache_data'):
             st.cache_data.clear()
         
-        # 页面标题
+        # Page title
         st.markdown('<div class="main-title">Depression Scale Score Prediction v2.0</div>', unsafe_allow_html=True)
         
         # 只在SHAP不可用时显示提示
         if not SHAP_AVAILABLE:
             st.info("📊 Prediction function is working normally, SHAP analysis function is temporarily unavailable")
         
-        # 模型选择 - 去掉多余空白
+        # Model selection - remove extra whitespace
         col1, col2 = st.columns([1, 2])
         with col1:
             st.markdown('<div class="input-label">Select Prediction Model:</div>', unsafe_allow_html=True)
@@ -860,7 +862,7 @@ class DepressionPredictionApp:
                 label_visibility="collapsed"
             )
         
-        # 输入区域 - 紧接着模型选择
+        # Input area - immediately following model selection
         
         col1, col2, col3, col4 = st.columns(4)
         
@@ -888,18 +890,18 @@ class DepressionPredictionApp:
             phone_usage = st.number_input("Phone Usage Time Total Score", min_value=0, max_value=60, value=23, step=1, key="phone", label_visibility="collapsed")
             st.markdown('</div>', unsafe_allow_html=True)
         
-        # 预测按钮
+        # Prediction button
         if st.button("Predict", key="predict_btn"):
             if selected_model in self.models:
-                # 准备输入数据 - 所有模型都使用英文特征名称
+                # Prepare input data - all models use Chinese feature names (consistent with training)
                 input_data = pd.DataFrame({
-                    'parent_child_score': [parent_child],
-                    'resilience_score': [resilience],
-                    'anxiety_score': [anxiety],
-                    'phone_usage_score': [phone_usage]
+                    '亲子量表总得分': [parent_child],
+                    '韧性量表总得分': [resilience],
+                    '焦虑量表总得分': [anxiety],
+                    '手机使用时间总得分': [phone_usage]
                 })
                 
-                # 进行预测
+                # Perform prediction
                 try:
                     print(f"🔄 Starting prediction with {selected_model} model...")
                     print(f"📊 Input data: {input_data}")
@@ -1047,9 +1049,9 @@ class DepressionPredictionApp:
                     
                     print(f"✅ {selected_model} prediction successful, result: {prediction}")
                     
-                    # 强制计算置信区间 - 确保一定有值显示
+                    # Force calculate confidence interval - ensure values are always displayed
                     mean_pred = prediction
-                    # 基于模型类型设置不确定性
+                    # Set uncertainty based on model type
                     if selected_model in ['XGBoost', 'LightGBM']:
                         uncertainty_factor = 0.06
                     elif selected_model in ['LinearRegression', 'Ridge']:
@@ -1064,7 +1066,7 @@ class DepressionPredictionApp:
                     
                     print(f"✅ Confidence interval: {lower_ci:.2f} - {upper_ci:.2f} ({lower_ci*100/27:.1f}% - {upper_ci*100/27:.1f}%)")
                     
-                    # 使用实际预测值或平均值
+                    # Use actual prediction value or mean value
                     final_prediction = mean_pred if mean_pred is not None else prediction
                     
                     # 显示预测结果 - 确保置信区间始终显示
@@ -1190,7 +1192,7 @@ class DepressionPredictionApp:
                                 <div style="font-size: 24px; font-weight: bold; color: #000000; margin-bottom: 5px;">
                                     {final_prediction*100/27:.2f}%
                                 </div>
-                                {f'<div style="font-size: 16px; color: #666666; margin-top: 10px;">95% 置信区间: {lower_ci*100/27:.1f}% - {upper_ci*100/27:.1f}%</div>' if lower_ci is not None and upper_ci is not None else ''}
+                                {f'<div style="font-size: 16px; color: #666666; margin-top: 10px;">95% Confidence Interval: {lower_ci*100/27:.1f}% - {upper_ci*100/27:.1f}%</div>' if lower_ci is not None and upper_ci is not None else ''}
                             </div>
                             """, unsafe_allow_html=True)
                             
