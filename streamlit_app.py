@@ -362,7 +362,7 @@ class DepressionPredictionApp:
         print(f"📊 总共加载了 {len(self.available_models)} 个模型: {', '.join(self.available_models)}")
     
     def load_background_data(self):
-        """加载背景数据用于SHAP分析和置信区间计算"""
+        """Load background data for SHAP analysis and confidence interval calculation"""
         try:
             # 尝试加载预生成的背景数据
             background_data_path = current_dir / 'models' / 'background_data.pkl'
@@ -602,7 +602,7 @@ class DepressionPredictionApp:
         try:
             # 获取特征值和名称
             feature_values = input_data.iloc[0].values
-            feature_names = ['亲子量表得分', '韧性量表得分', '焦虑量表得分', '手机使用时间得分']
+            feature_names = ['Parent-Child Scale Score', 'Resilience Scale Score', 'Anxiety Scale Score', 'Phone Usage Time Score']
             
             # 获取基准值和SHAP值
             expected_value = explainer.expected_value
@@ -616,15 +616,15 @@ class DepressionPredictionApp:
             
             # 风险等级判断
             if prediction > 14:
-                risk_level = "高风险"
+                risk_level = "High Risk"
                 risk_color = "#e74c3c"
                 risk_emoji = "🔴"
             elif prediction > 7:
-                risk_level = "中风险"
+                risk_level = "Medium Risk"
                 risk_color = "#f39c12"
                 risk_emoji = "🟡"
             else:
-                risk_level = "低风险"
+                risk_level = "Low Risk"
                 risk_color = "#27ae60"
                 risk_emoji = "🟢"
             
@@ -635,11 +635,11 @@ class DepressionPredictionApp:
             # 主要影响因素分析
             main_factor = sorted_features[0]
             if main_factor[2] > 0:
-                main_effect = f"{main_factor[0]}({main_factor[1]:.0f}分)对预测结果产生了正向影响(+{main_factor[2]:.2f})"
-                effect_desc = "增加了抑郁倾向"
+                main_effect = f"{main_factor[0]}({main_factor[1]:.0f} points) had a positive impact on prediction results (+{main_factor[2]:.2f})"
+                effect_desc = "increased depression tendency"
             else:
-                main_effect = f"{main_factor[0]}({main_factor[1]:.0f}分)对预测结果产生了负向影响({main_factor[2]:.2f})"
-                effect_desc = "降低了抑郁倾向"
+                main_effect = f"{main_factor[0]}({main_factor[1]:.0f} points) had a negative impact on prediction results ({main_factor[2]:.2f})"
+                effect_desc = "decreased depression tendency"
             
             # 生成简洁解释
             explanation = f"""
@@ -648,17 +648,17 @@ class DepressionPredictionApp:
                         box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
                 <div style="color: white; font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;">
                     <h3 style="margin: 0 0 15px 0; font-weight: 300; font-size: 24px;">
-                        🧠 智能分析结果
+                        🧠 Intelligent Analysis Results
                     </h3>
                     <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; 
                                 backdrop-filter: blur(10px);">
                         <p style="font-size: 18px; margin: 0 0 12px 0; line-height: 1.6;">
-                            {risk_emoji} 根据{model_name}模型分析，您的<strong style="color: {risk_color};">抑郁风险等级为{risk_level}</strong>，
-                            预测得分<strong>{prediction:.1f}分</strong>(满分27分)。
+                            {risk_emoji} Based on {model_name} model analysis, your <strong style="color: {risk_color};">depression risk level is {risk_level}</strong>,
+                            predicted score <strong>{prediction:.1f} points</strong> (out of 27 points).
                         </p>
                         <p style="font-size: 16px; margin: 0; line-height: 1.6; opacity: 0.9;">
-                            主要影响因素：{main_effect}，{effect_desc}。
-                            建议关注心理健康状态，如有需要及时寻求专业帮助。
+                            Main influencing factors: {main_effect}, {effect_desc}.
+                            It is recommended to pay attention to mental health status and seek professional help if needed.
                         </p>
                     </div>
                 </div>
@@ -670,88 +670,88 @@ class DepressionPredictionApp:
         except Exception as e:
             return f"""
             <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #dc3545;">
-                <p style="color: #721c24; margin: 0;">生成解释时出错: {str(e)}</p>
+                <p style="color: #721c24; margin: 0;">Error generating explanation: {str(e)}</p>
             </div>
             """
     
     def _get_feature_analysis(self, feature_name, value, shap_val, direction):
-        """根据特征名称、数值和SHAP值生成具体分析"""
-        if feature_name == '亲子量表得分':
+        """Generate specific analysis based on feature name, value and SHAP value"""
+        if feature_name == 'Parent-Child Scale Score':
             if direction == 'positive':
                 if value >= 25:
-                    return "亲子关系存在较大问题，可能增加抑郁风险"
+                    return "Parent-child relationship has significant issues, may increase depression risk"
                 else:
-                    return "亲子关系有一定挑战，对心理健康有负面影响"
+                    return "Parent-child relationship has some challenges, negatively affecting mental health"
             else:
-                return "良好的亲子关系是重要的保护因素，有助于维护心理健康"
+                return "Good parent-child relationship is an important protective factor, helps maintain mental health"
                 
-        elif feature_name == '韧性量表得分':
+        elif feature_name == 'Resilience Scale Score':
             if direction == 'positive':
-                return "心理韧性相对较低，面对压力时调适能力有限"
+                return "Psychological resilience is relatively low, limited ability to adapt to stress"
             else:
                 if abs(shap_val) > 0.5:
-                    return "良好的心理韧性显著降低了抑郁风险，这是很强的保护因素"
+                    return "Good psychological resilience significantly reduces depression risk, this is a strong protective factor"
                 else:
-                    return "适度的心理韧性对心理健康有保护作用"
+                    return "Moderate psychological resilience has protective effects on mental health"
                     
-        elif feature_name == '焦虑量表得分':
+        elif feature_name == 'Anxiety Scale Score':
             if direction == 'positive':
                 if value >= 15:
-                    return "焦虑水平较高，与抑郁症状密切相关，需要重点关注"
+                    return "High anxiety levels, closely related to depressive symptoms, requires focused attention"
                 else:
-                    return "存在一定程度的焦虑情绪，可能影响整体心理状态"
+                    return "There is a certain degree of anxiety, may affect overall psychological state"
             else:
-                return "焦虑水平相对较低，有助于维持心理平衡"
+                return "Anxiety levels are relatively low, helps maintain psychological balance"
                 
-        elif feature_name == '手机使用时间得分':
+        elif feature_name == 'Phone Usage Time Score':
             if direction == 'positive':
                 if value >= 15:
-                    return "过度使用手机可能影响社交和睡眠，增加抑郁风险"
+                    return "Excessive phone use may affect social interaction and sleep, increasing depression risk"
                 else:
-                    return "手机使用时间对心理状态有一定负面影响"
+                    return "Phone usage time has some negative impact on psychological state"
             else:
-                return "合理控制手机使用时间有助于心理健康"
+                return "Reasonable control of phone usage time is beneficial to mental health"
         
-        return "该因素对预测结果有一定影响"
+        return "This factor has some impact on prediction results"
     
     def _get_personalized_recommendations(self, feature_data, prediction, risk_level):
-        """生成个性化建议"""
+        """Generate personalized recommendations"""
         recommendations = []
         
-        # 根据各特征得分给出建议
+        # Give recommendations based on each feature score
         for name, value, shap_val in feature_data:
-            if name == '亲子量表得分' and (shap_val > 0 or value > 20):
-                recommendations.append("🏠 **改善亲子关系**: 尝试增加与家人的沟通时间，表达关爱与理解")
+            if name == 'Parent-Child Scale Score' and (shap_val > 0 or value > 20):
+                recommendations.append("🏠 **Improve Parent-Child Relationship**: Try to increase communication time with family, express care and understanding")
             
-            if name == '韧性量表得分' and shap_val > 0:
-                recommendations.append("💪 **提升心理韧性**: 学习压力管理技巧，培养积极应对方式")
+            if name == 'Resilience Scale Score' and shap_val > 0:
+                recommendations.append("💪 **Enhance Psychological Resilience**: Learn stress management techniques, cultivate positive coping methods")
             
-            if name == '焦虑量表得分' and (shap_val > 0 or value > 10):
-                recommendations.append("🧘 **缓解焦虑情绪**: 尝试深呼吸、冥想或适量运动来缓解焦虑")
+            if name == 'Anxiety Scale Score' and (shap_val > 0 or value > 10):
+                recommendations.append("🧘 **Relieve Anxiety**: Try deep breathing, meditation or moderate exercise to relieve anxiety")
             
-            if name == '手机使用时间得分' and (shap_val > 0 or value > 12):
-                recommendations.append("📱 **合理使用手机**: 设定使用时限，增加线下活动和面对面社交")
+            if name == 'Phone Usage Time Score' and (shap_val > 0 or value > 12):
+                recommendations.append("📱 **Reasonable Phone Use**: Set usage time limits, increase offline activities and face-to-face social interaction")
         
-        # 根据风险等级添加通用建议
-        if risk_level == "高风险":
-            recommendations.append("🏥 **寻求专业帮助**: 建议尽快咨询心理健康专家或医生")
-            recommendations.append("🤝 **建立支持网络**: 与亲友保持联系，不要独自承受压力")
-        elif risk_level == "中风险":
-            recommendations.append("📝 **自我关怀**: 建立规律作息，保持适量运动和社交活动")
-            recommendations.append("📞 **预防性咨询**: 考虑寻求心理咨询师的专业建议")
+        # Add general recommendations based on risk level
+        if risk_level == "High Risk":
+            recommendations.append("🏥 **Seek Professional Help**: It is recommended to consult mental health experts or doctors as soon as possible")
+            recommendations.append("🤝 **Build Support Network**: Stay in touch with friends and family, don't bear pressure alone")
+        elif risk_level == "Medium Risk":
+            recommendations.append("📝 **Self-Care**: Establish regular routines, maintain moderate exercise and social activities")
+            recommendations.append("📞 **Preventive Consultation**: Consider seeking professional advice from a psychological counselor")
         else:
-            recommendations.append("✨ **维持现状**: 继续保持良好的心理状态和生活习惯")
-            recommendations.append("🔄 **定期自检**: 保持对自己心理状态的关注")
+            recommendations.append("✨ **Maintain Status**: Continue to maintain good mental state and lifestyle habits")
+            recommendations.append("🔄 **Regular Self-Check**: Keep paying attention to your mental state")
         
         return "\n".join([f"- {rec}" for rec in recommendations])
     
     def run_shap_analysis(self, model, model_name, input_data):
-        """运行SHAP分析 - 简化版本，专门处理云端兼容性问题"""
+        """Run SHAP analysis - Simplified version, specifically handles cloud compatibility issues"""
         if not hasattr(self, 'background_data_en') or self.background_data_en is None or not SHAP_AVAILABLE:
             return None
         
         try:
-            print(f"正在分析模型: {model_name}")  # 调试信息
+            print(f"Analyzing model: {model_name}")  # Debug info
             
             # 针对不同模型使用不同的SHAP解释器
             if model_name == 'XGBoost':
