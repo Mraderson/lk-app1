@@ -83,7 +83,7 @@ warnings.filterwarnings("ignore")
 
 # 设置页面配置
 st.set_page_config(
-    page_title="抑郁量表得分预测",
+    page_title="Depression Scale Score Prediction",
     page_icon="🧠",
     layout="centered",
     initial_sidebar_state="collapsed"
@@ -249,12 +249,12 @@ class DepressionPredictionApp:
         ]
         
         # 特征名称映射
-        self.feature_names = ['亲子量表总得分', '韧性量表总得分', '焦虑量表总得分', '手机使用时间总得分']
+        self.feature_names = ['parent_child_score', 'resilience_score', 'anxiety_score', 'phone_usage_score']
         self.feature_name_mapping = {
-            '亲子量表总得分': 'Parent-Child Scale',
-            '韧性量表总得分': 'Resilience Scale', 
-            '焦虑量表总得分': 'Anxiety Scale',
-            '手机使用时间总得分': 'Phone Usage Time'
+            'parent_child_score': 'Parent-Child Scale',
+            'resilience_score': 'Resilience Scale', 
+            'anxiety_score': 'Anxiety Scale',
+            'phone_usage_score': 'Phone Usage Time'
         }
         
         self.load_models()
@@ -843,18 +843,18 @@ class DepressionPredictionApp:
             st.cache_data.clear()
         
         # 页面标题
-        st.markdown('<div class="main-title">抑郁量表得分预测 v2.0</div>', unsafe_allow_html=True)
+        st.markdown('<div class="main-title">Depression Scale Score Prediction v2.0</div>', unsafe_allow_html=True)
         
         # 只在SHAP不可用时显示提示
         if not SHAP_AVAILABLE:
-            st.info("📊 预测功能正常运行，SHAP分析功能暂时不可用")
+            st.info("📊 Prediction function is working normally, SHAP analysis function is temporarily unavailable")
         
         # 模型选择 - 去掉多余空白
         col1, col2 = st.columns([1, 2])
         with col1:
-            st.markdown('<div class="input-label">选择预测模型:</div>', unsafe_allow_html=True)
+            st.markdown('<div class="input-label">Select Prediction Model:</div>', unsafe_allow_html=True)
             selected_model = st.selectbox(
-                "预测模型",
+                "Prediction Model",
                 self.available_models,
                 index=0 if 'XGBoost' in self.available_models else 0,
                 label_visibility="collapsed"
@@ -866,53 +866,43 @@ class DepressionPredictionApp:
         
         with col1:
             st.markdown('<div class="input-container">', unsafe_allow_html=True)
-            st.markdown('<div class="input-label">亲子量表得分</div>', unsafe_allow_html=True)
-            parent_child = st.number_input("亲子量表总得分", min_value=8, max_value=50, value=17, step=1, key="parent", label_visibility="collapsed")
+            st.markdown('<div class="input-label">Parent-Child Scale Score</div>', unsafe_allow_html=True)
+            parent_child = st.number_input("Parent-Child Scale Total Score", min_value=8, max_value=50, value=17, step=1, key="parent", label_visibility="collapsed")
             st.markdown('</div>', unsafe_allow_html=True)
         
         with col2:
             st.markdown('<div class="input-container">', unsafe_allow_html=True)
-            st.markdown('<div class="input-label">韧性量表得分</div>', unsafe_allow_html=True)
-            resilience = st.number_input("韧性量表总得分", min_value=0, max_value=40, value=7, step=1, key="resilience", label_visibility="collapsed")
+            st.markdown('<div class="input-label">Resilience Scale Score</div>', unsafe_allow_html=True)
+            resilience = st.number_input("Resilience Scale Total Score", min_value=0, max_value=40, value=7, step=1, key="resilience", label_visibility="collapsed")
             st.markdown('</div>', unsafe_allow_html=True)
         
         with col3:
             st.markdown('<div class="input-container">', unsafe_allow_html=True)
-            st.markdown('<div class="input-label">焦虑量表得分</div>', unsafe_allow_html=True)
-            anxiety = st.number_input("焦虑量表总得分", min_value=0, max_value=20, value=4, step=1, key="anxiety", label_visibility="collapsed")
+            st.markdown('<div class="input-label">Anxiety Scale Score</div>', unsafe_allow_html=True)
+            anxiety = st.number_input("Anxiety Scale Total Score", min_value=0, max_value=20, value=4, step=1, key="anxiety", label_visibility="collapsed")
             st.markdown('</div>', unsafe_allow_html=True)
         
         with col4:
             st.markdown('<div class="input-container">', unsafe_allow_html=True)
-            st.markdown('<div class="input-label">手机使用时间得分</div>', unsafe_allow_html=True)
-            phone_usage = st.number_input("手机使用时间总得分", min_value=0, max_value=60, value=23, step=1, key="phone", label_visibility="collapsed")
+            st.markdown('<div class="input-label">Phone Usage Time Score</div>', unsafe_allow_html=True)
+            phone_usage = st.number_input("Phone Usage Time Total Score", min_value=0, max_value=60, value=23, step=1, key="phone", label_visibility="collapsed")
             st.markdown('</div>', unsafe_allow_html=True)
         
         # 预测按钮
         if st.button("Predict", key="predict_btn"):
             if selected_model in self.models:
-                # 准备输入数据 - 根据模型类型使用不同的特征名称
-                if selected_model in ['XGBoost']:
-                    # XGBoost使用英文特征名称
-                    input_data = pd.DataFrame({
-                        'parent_child_score': [parent_child],
-                        'resilience_score': [resilience],
-                        'anxiety_score': [anxiety],
-                        'phone_usage_score': [phone_usage]
-                    })
-                else:
-                    # 其他所有模型使用中文特征名称
-                    input_data = pd.DataFrame({
-                        '亲子量表总得分': [parent_child],
-                        '韧性量表总得分': [resilience],
-                        '焦虑量表总得分': [anxiety],
-                        '手机使用时间总得分': [phone_usage]
-                    })
+                # 准备输入数据 - 所有模型都使用英文特征名称
+                input_data = pd.DataFrame({
+                    'parent_child_score': [parent_child],
+                    'resilience_score': [resilience],
+                    'anxiety_score': [anxiety],
+                    'phone_usage_score': [phone_usage]
+                })
                 
                 # 进行预测
                 try:
-                    print(f"🔄 开始使用 {selected_model} 模型进行预测...")
-                    print(f"📊 输入数据: {input_data}")
+                    print(f"🔄 Starting prediction with {selected_model} model...")
+                    print(f"📊 Input data: {input_data}")
                     
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
@@ -921,7 +911,7 @@ class DepressionPredictionApp:
                         model = self.models[selected_model]
                         
                         if selected_model in ['XGBoost', 'LightGBM']:
-                            print(f"  🔧 正在修复{selected_model}的GPU兼容性...")
+                            print(f"  🔧 Fixing {selected_model} GPU compatibility...")
                             
                             # 策略1: 创建模型副本并清理GPU属性
                             try:
@@ -934,7 +924,7 @@ class DepressionPredictionApp:
                                     if hasattr(model, attr):
                                         try:
                                             delattr(model, attr)
-                                            print(f"    ✅ 移除属性: {attr}")
+                                            print(f"    ✅ Removed attribute: {attr}")
                                         except:
                                             pass
                                 
@@ -949,7 +939,7 @@ class DepressionPredictionApp:
                                     for key, value in cpu_params.items():
                                         try:
                                             model.set_param({key: value})
-                                            print(f"    ✅ 设置参数: {key}={value}")
+                                            print(f"    ✅ Set parameter: {key}={value}")
                                         except:
                                             pass
                                 
@@ -960,22 +950,22 @@ class DepressionPredictionApp:
                                         for key, value in cpu_params.items():
                                             try:
                                                 booster.set_param({key: value})
-                                                print(f"    ✅ Booster设置: {key}={value}")
+                                                print(f"    ✅ Booster setting: {key}={value}")
                                             except:
                                                 pass
                                     except:
                                         pass
                                 
-                                print(f"  ✅ {selected_model} GPU兼容性修复完成")
+                                print(f"  ✅ {selected_model} GPU compatibility fix completed")
                                 
                             except Exception as fix_error:
-                                print(f"  ⚠️ 深度修复失败: {fix_error}")
+                                print(f"  ⚠️ Deep fix failed: {fix_error}")
                                 # 如果深度修复失败，使用原模型
                                 model = self.models[selected_model]
                         
                         # 静默修复函数 - 不显示过程，只要结果
                         def safe_predict(model, data, model_name):
-                            """静默修复GPU兼容性问题并返回预测结果"""
+                            """Silently fix GPU compatibility issues and return prediction results"""
                             try:
                                 # 首先尝试直接预测
                                 return model.predict(data)[0]
@@ -1051,11 +1041,11 @@ class DepressionPredictionApp:
                         try:
                             prediction = safe_predict(model, input_data, selected_model)
                         except Exception as pred_error:
-                            st.error(f"预测失败: {pred_error}")
-                            st.info("请尝试选择其他模型或检查输入数据")
+                            st.error(f"Prediction failed: {pred_error}")
+                            st.info("Please try selecting another model or check input data")
                             return
                     
-                    print(f"✅ {selected_model} 预测成功，结果: {prediction}")
+                    print(f"✅ {selected_model} prediction successful, result: {prediction}")
                     
                     # 强制计算置信区间 - 确保一定有值显示
                     mean_pred = prediction
@@ -1072,13 +1062,13 @@ class DepressionPredictionApp:
                     lower_ci = max(0, prediction - margin_of_error)
                     upper_ci = min(27, prediction + margin_of_error)
                     
-                    print(f"✅ 置信区间: {lower_ci:.2f} - {upper_ci:.2f} ({lower_ci*100/27:.1f}% - {upper_ci*100/27:.1f}%)")
+                    print(f"✅ Confidence interval: {lower_ci:.2f} - {upper_ci:.2f} ({lower_ci*100/27:.1f}% - {upper_ci*100/27:.1f}%)")
                     
                     # 使用实际预测值或平均值
                     final_prediction = mean_pred if mean_pred is not None else prediction
                     
                     # 显示预测结果 - 确保置信区间始终显示
-                    confidence_text = f'<div style="font-size: 16px; color: #666666; margin-top: 10px;">95% 置信区间: {lower_ci*100/27:.1f}% - {upper_ci*100/27:.1f}%</div>'
+                    confidence_text = f'<div style="font-size: 16px; color: #666666; margin-top: 10px;">95% Confidence Interval: {lower_ci*100/27:.1f}% - {upper_ci*100/27:.1f}%</div>'
                     
                     st.markdown(f"""
                     <div style="background-color: #ffffff; border: 2px solid #dee2e6; border-radius: 8px; padding: 20px; margin: 10px 0; text-align: center;">
@@ -1096,33 +1086,33 @@ class DepressionPredictionApp:
                     st.markdown("""
                     <div style="display: flex; justify-content: space-around; margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
                         <div style="text-align: center; flex: 1;">
-                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">预测得分</div>
+                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Predicted Score</div>
                             <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">{:.2f}</div>
                         </div>
                         <div style="text-align: center; flex: 1;">
-                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">得分范围</div>
+                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Score Range</div>
                             <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">0-27</div>
                         </div>
                         <div style="text-align: center; flex: 1;">
-                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">风险等级</div>
+                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Risk Level</div>
                             <div style="font-size: 24px; font-weight: bold; color: {};">{}</div>
                         </div>
                         <div style="text-align: center; flex: 1;">
-                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">使用模型</div>
+                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Model Used</div>
                             <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">{}</div>
                         </div>
                     </div>
                     """.format(
                         final_prediction,
                         "#e74c3c" if final_prediction > 14 else "#f39c12" if final_prediction > 7 else "#27ae60",
-                        "高风险" if final_prediction > 14 else "中风险" if final_prediction > 7 else "低风险",
+                        "High Risk" if final_prediction > 14 else "Medium Risk" if final_prediction > 7 else "Low Risk",
                         selected_model
                     ), unsafe_allow_html=True)
                     
                     # SHAP分析
                     if SHAP_AVAILABLE:
                         try:
-                            with st.spinner("正在生成特征重要性分析图..."):
+                            with st.spinner("Generating feature importance analysis chart..."):
                                 shap_result = self.run_shap_analysis(self.models[selected_model], selected_model, input_data)
                                 
                                 if shap_result:
@@ -1140,22 +1130,22 @@ class DepressionPredictionApp:
                                         )
                                         st.markdown(explanation, unsafe_allow_html=True)
                                 elif selected_model in ['KNN']:
-                                    st.info("💡 KNN模型的特征分析需要较长时间，已跳过")
+                                    st.info("💡 KNN model feature analysis takes a long time, skipped")
                                 elif selected_model in ['XGBoost', 'LightGBM']:
-                                    st.info("💡 树模型在云端环境中的特征分析暂时不可用，可试试线性模型")
+                                    st.info("💡 Tree model feature analysis is temporarily unavailable in cloud environment, try linear models")
                         except Exception as shap_error:
-                            st.warning(f"特征分析暂时不可用: {str(shap_error)}")
+                            st.warning(f"Feature analysis temporarily unavailable: {str(shap_error)}")
                 
                 except Exception as e:
                     error_msg = str(e)
                     if 'gpu_id' in error_msg and selected_model in ['XGBoost', 'LightGBM']:
                         # 特殊处理XGBoost/LightGBM的GPU错误
-                        st.error(f"⚠️ {selected_model}模型遇到GPU兼容性问题")
-                        st.info("💡 建议使用LinearRegression或Ridge模型，它们在云端环境中更稳定")
+                        st.error(f"⚠️ {selected_model} model encountered GPU compatibility issues")
+                        st.info("💡 Recommend using LinearRegression or Ridge models, they are more stable in cloud environments")
                         
                         # 尝试emergency修复并重试一次
                         try:
-                            st.info("🔧 正在尝试紧急修复...")
+                            st.info("🔧 Attempting emergency fix...")
                             model = self.models[selected_model]
                             
                             # 强制重置模型状态
@@ -1175,7 +1165,7 @@ class DepressionPredictionApp:
                             
                             # 如果成功，替换原模型
                             self.models[selected_model] = model_copy
-                            st.success(f"🎉 {selected_model}模型修复成功！")
+                            st.success(f"🎉 {selected_model} model fix successful!")
                             
                             # 继续显示结果的逻辑...
                             try:
@@ -1208,37 +1198,37 @@ class DepressionPredictionApp:
                             st.markdown("""
                             <div style="display: flex; justify-content: space-around; margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
                                 <div style="text-align: center; flex: 1;">
-                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">预测得分</div>
+                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Predicted Score</div>
                                     <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">{:.2f}</div>
                                 </div>
                                 <div style="text-align: center; flex: 1;">
-                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">得分范围</div>
+                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Score Range</div>
                                     <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">0-27</div>
                                 </div>
                                 <div style="text-align: center; flex: 1;">
-                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">风险等级</div>
+                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Risk Level</div>
                                     <div style="font-size: 24px; font-weight: bold; color: {};">{}</div>
                                 </div>
                                 <div style="text-align: center; flex: 1;">
-                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">使用模型</div>
+                                    <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Model Used</div>
                                     <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">{}</div>
                                 </div>
                             </div>
                             """.format(
                                 final_prediction,
                                 "#e74c3c" if final_prediction > 14 else "#f39c12" if final_prediction > 7 else "#27ae60",
-                                "高风险" if final_prediction > 14 else "中风险" if final_prediction > 7 else "低风险",
+                                "High Risk" if final_prediction > 14 else "Medium Risk" if final_prediction > 7 else "Low Risk",
                                 selected_model
                             ), unsafe_allow_html=True)
                             
                         except Exception as retry_error:
-                            st.error(f"紧急修复失败: {retry_error}")
-                            st.info("💡 建议使用LinearRegression或Ridge模型")
+                            st.error(f"Emergency fix failed: {retry_error}")
+                            st.info("💡 Recommend using LinearRegression or Ridge models")
                     else:
-                        st.error(f"预测失败: {e}")
-                        st.info("请尝试选择其他模型或检查输入数据")
+                        st.error(f"Prediction failed: {e}")
+                        st.info("Please try selecting another model or check input data")
             else:
-                st.error(f"模型 {selected_model} 不可用，请选择其他模型")
+                st.error(f"Model {selected_model} is not available, please select another model")
 
 # 运行应用
 if __name__ == "__main__":

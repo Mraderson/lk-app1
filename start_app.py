@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-抑郁量表得分预测应用启动脚本
+Depression Scale Score Prediction Application Startup Script
 """
 
 import subprocess
@@ -13,8 +13,8 @@ def main():
     app_dir = Path(__file__).parent
     os.chdir(app_dir)
     
-    print("🚀 启动抑郁量表得分预测应用...")
-    print(f"📁 应用目录: {app_dir}")
+    print("🚀 Starting Depression Scale Score Prediction Application...")
+    print(f"📁 Application directory: {app_dir}")
     
     # 检查必要文件
     required_files = [
@@ -30,18 +30,18 @@ def main():
             missing_files.append(file)
     
     if missing_files:
-        print("❌ 缺少必要文件:")
+        print("❌ Missing required files:")
         for file in missing_files:
             print(f"   - {file}")
         sys.exit(1)
     
-    print("✅ 所有必要文件检查完毕")
+    print("✅ All required files checked")
     
     # 启动应用
     try:
-        print("🌟 正在启动Streamlit应用...")
-        print("📱 应用将在浏览器中打开: http://localhost:8501")
-        print("🛑 按 Ctrl+C 停止应用")
+        print("🌟 Starting Streamlit application...")
+        print("📱 Application will open in browser: http://localhost:8501")
+        print("🛑 Press Ctrl+C to stop application")
         print("-" * 50)
         
         subprocess.run([
@@ -52,9 +52,9 @@ def main():
         ], check=True)
         
     except KeyboardInterrupt:
-        print("\n🛑 应用已停止")
+        print("\n🛑 Application stopped")
     except subprocess.CalledProcessError as e:
-        print(f"❌ 启动失败: {e}")
+        print(f"❌ Startup failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

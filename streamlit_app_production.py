@@ -29,7 +29,7 @@ except Exception as e:
 
 # 配置页面
 st.set_page_config(
-    page_title="抑郁量表得分预测",
+    page_title="Depression Scale Score Prediction",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -98,15 +98,15 @@ class DepressionPredictionApp:
     def __init__(self):
         """初始化应用"""
         self.models = {}
-        self.feature_names = ['亲子量表总得分', '韧性量表总得分', '焦虑量表总得分', '手机使用时间总得分']
+        self.feature_names = ['parent_child_score', 'resilience_score', 'anxiety_score', 'phone_usage_score']
         self.available_models = ['XGBoost', 'LightGBM', 'LinearRegression', 'Ridge', 'KNN']
         
         # 特征名称映射（用于SHAP显示）
         self.feature_name_mapping = {
-            '亲子量表总得分': 'Parent Child',
-            '韧性量表总得分': 'Resilience',
-            '焦虑量表总得分': 'Anxiety',
-            '手机使用时间总得分': 'Phone Usage Time'
+            'parent_child_score': 'Parent Child',
+            'resilience_score': 'Resilience',
+            'anxiety_score': 'Anxiety',
+            'phone_usage_score': 'Phone Usage Time'
         }
         
         self.load_models()
@@ -335,20 +335,20 @@ class DepressionPredictionApp:
     
     def run(self):
         """运行应用主程序"""
-        st.markdown('<div class="main-title">抑郁量表得分预测</div>', unsafe_allow_html=True)
+        st.markdown('<div class="main-title">Depression Scale Score Prediction</div>', unsafe_allow_html=True)
         
-        st.info("🌐 云端生产版本：已优化GPU兼容性，支持XGBoost模型和SHAP分析")
+        st.info("🌐 Cloud Production Version: Optimized GPU compatibility, supports XGBoost models and SHAP analysis")
         
         if not self.available_models:
-            st.error("没有可用的模型，请检查配置")
+            st.error("No available models, please check configuration")
             return
         
         # 模型选择
         col1, col2 = st.columns([1, 2])
         with col1:
-            st.markdown('<div class="input-label">选择预测模型:</div>', unsafe_allow_html=True)
+            st.markdown('<div class="input-label">Select Prediction Model:</div>', unsafe_allow_html=True)
             selected_model = st.selectbox(
-                "预测模型",
+                "Prediction Model",
                 self.available_models,
                 index=0,
                 label_visibility="collapsed"
@@ -359,26 +359,26 @@ class DepressionPredictionApp:
         
         with col1:
             st.markdown('<div class="input-container">', unsafe_allow_html=True)
-            st.markdown('<div class="input-label">亲子量表得分</div>', unsafe_allow_html=True)
-            parent_child = st.number_input("亲子量表总得分", min_value=8, max_value=50, value=17, step=1, key="parent", label_visibility="collapsed")
+            st.markdown('<div class="input-label">Parent-Child Scale Score</div>', unsafe_allow_html=True)
+            parent_child = st.number_input("Parent-Child Scale Total Score", min_value=8, max_value=50, value=17, step=1, key="parent", label_visibility="collapsed")
             st.markdown('</div>', unsafe_allow_html=True)
         
         with col2:
             st.markdown('<div class="input-container">', unsafe_allow_html=True)
-            st.markdown('<div class="input-label">韧性量表得分</div>', unsafe_allow_html=True)
-            resilience = st.number_input("韧性量表总得分", min_value=0, max_value=40, value=7, step=1, key="resilience", label_visibility="collapsed")
+            st.markdown('<div class="input-label">Resilience Scale Score</div>', unsafe_allow_html=True)
+            resilience = st.number_input("Resilience Scale Total Score", min_value=0, max_value=40, value=7, step=1, key="resilience", label_visibility="collapsed")
             st.markdown('</div>', unsafe_allow_html=True)
         
         with col3:
             st.markdown('<div class="input-container">', unsafe_allow_html=True)
-            st.markdown('<div class="input-label">焦虑量表得分</div>', unsafe_allow_html=True)
-            anxiety = st.number_input("焦虑量表总得分", min_value=0, max_value=20, value=4, step=1, key="anxiety", label_visibility="collapsed")
+            st.markdown('<div class="input-label">Anxiety Scale Score</div>', unsafe_allow_html=True)
+            anxiety = st.number_input("Anxiety Scale Total Score", min_value=0, max_value=20, value=4, step=1, key="anxiety", label_visibility="collapsed")
             st.markdown('</div>', unsafe_allow_html=True)
         
         with col4:
             st.markdown('<div class="input-container">', unsafe_allow_html=True)
-            st.markdown('<div class="input-label">手机使用时间得分</div>', unsafe_allow_html=True)
-            phone_usage = st.number_input("手机使用时间总得分", min_value=0, max_value=60, value=23, step=1, key="phone", label_visibility="collapsed")
+            st.markdown('<div class="input-label">Phone Usage Time Score</div>', unsafe_allow_html=True)
+            phone_usage = st.number_input("Phone Usage Time Total Score", min_value=0, max_value=60, value=23, step=1, key="phone", label_visibility="collapsed")
             st.markdown('</div>', unsafe_allow_html=True)
         
         # 预测按钮
@@ -386,10 +386,10 @@ class DepressionPredictionApp:
             if selected_model in self.models:
                 # 准备输入数据
                 input_data = pd.DataFrame({
-                    '亲子量表总得分': [parent_child],
-                    '韧性量表总得分': [resilience],
-                    '焦虑量表总得分': [anxiety],
-                    '手机使用时间总得分': [phone_usage]
+                    'parent_child_score': [parent_child],
+                    'resilience_score': [resilience],
+                    'anxiety_score': [anxiety],
+                    'phone_usage_score': [phone_usage]
                 })
                 
                 # 安全预测
@@ -412,7 +412,7 @@ class DepressionPredictionApp:
                         <div style="font-size: 24px; font-weight: bold; color: #000000; margin-bottom: 5px;">
                             {final_prediction*100/27:.2f}%
                         </div>
-                        {f'<div style="font-size: 16px; color: #666666; margin-top: 10px;">95% 置信区间: {lower_ci*100/27:.1f}% - {upper_ci*100/27:.1f}%</div>' if lower_ci is not None and upper_ci is not None else ''}
+                        {f'<div style="font-size: 16px; color: #666666; margin-top: 10px;">95% Confidence Interval: {lower_ci*100/27:.1f}% - {upper_ci*100/27:.1f}%</div>' if lower_ci is not None and upper_ci is not None else ''}
                     </div>
                     """, unsafe_allow_html=True)
                     
@@ -420,19 +420,19 @@ class DepressionPredictionApp:
                     st.markdown("""
                     <div style="display: flex; justify-content: space-around; margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
                         <div style="text-align: center; flex: 1;">
-                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">预测得分</div>
+                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Predicted Score</div>
                             <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">{:.2f}</div>
                         </div>
                         <div style="text-align: center; flex: 1;">
-                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">得分范围</div>
+                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Score Range</div>
                             <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">0-27</div>
                         </div>
                         <div style="text-align: center; flex: 1;">
-                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">风险等级</div>
+                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Risk Level</div>
                             <div style="font-size: 24px; font-weight: bold; color: {};">{}</div>
                         </div>
                         <div style="text-align: center; flex: 1;">
-                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">使用模型</div>
+                            <div style="font-size: 14px; color: #666666; margin-bottom: 5px; font-weight: 500;">Model Used</div>
                             <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">{}</div>
                         </div>
                     </div>
